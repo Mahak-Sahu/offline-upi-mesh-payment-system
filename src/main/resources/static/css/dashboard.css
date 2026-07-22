@@ -221,3 +221,98 @@ th {
     color: #8b949e;
 }
 
+/* ===========================
+   HERO HEADER
+=========================== */
+
+.hero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    background: #161b22;
+
+    border: 1px solid #30363d;
+
+    border-radius: 12px;
+
+    padding: 28px;
+
+    margin-bottom: 15px;
+}
+
+.hero-left h1 {
+
+    margin: 0;
+
+    font-size: 34px;
+
+    color: #ffffff;
+}
+
+.hero-left p {
+
+    color: #8b949e;
+
+    margin-top: 10px;
+
+    margin-bottom: 18px;
+
+    font-size: 16px;
+}
+
+.hero-tags {
+
+    display: flex;
+
+    gap: 12px;
+
+    flex-wrap: wrap;
+}
+
+.hero-tags span {
+
+    background: #21262d;
+
+    color: #58a6ff;
+
+    padding: 8px 14px;
+
+    border-radius: 20px;
+
+    font-size: 13px;
+
+    font-weight: 600;
+}
+
+.status-card {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    background: #052e16;
+
+    border: 1px solid #2ea043;
+
+    color: #7ee787;
+
+    padding: 14px 18px;
+
+    border-radius: 10px;
+
+    font-weight: bold;
+}
+
+.status-dot {
+
+    width: 12px;
+
+    height: 12px;
+
+    border-radius: 50%;
+
+    background: #2ea043;
+}
