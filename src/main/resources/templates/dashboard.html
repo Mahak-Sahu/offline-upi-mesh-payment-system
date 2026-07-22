@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>UPI Offline Mesh — Demo</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+
+<div class="container">
+    <h1>📡 UPI Offline Mesh — Live Demo</h1>
+    <p class="small">
+        Send money in a basement with zero internet. Encrypted packets gossip from phone to phone
+        until one with 4G reaches the backend.
+    </p>
+
+    <div class="controls">
+        <h3 style="margin-top:0">🎬 Demo Flow</h3>
+
+        <div>
+            <span class="step-num">1</span><strong>Compose payment</strong> (simulates sender phone)
+            <br>
+            <select id="senderVpa">
+                <option>alice@demo</option>
+                <option>bob@demo</option>
+                <option>carol@demo</option>
+            </select>
+            →
+            <select id="receiverVpa">
+                <option>bob@demo</option>
+                <option>carol@demo</option>
+                <option>alice@demo</option>
+                <option>dave@demo</option>
+            </select>
+            ₹<input type="number" id="amount" value="500" style="width: 100px">
+            PIN <input type="text" id="pin" value="1234" style="width: 80px" maxlength="4">
+            <button onclick="sendPacket()">📤 Inject into Mesh</button>
+        </div>
+
+        <div style="margin-top: 16px">
+            <span class="step-num">2</span><strong>Gossip</strong> — packets hop device-to-device
+            <button class="secondary" onclick="gossip()">🔄 Run Gossip Round</button>
+        </div>
+
+        <div style="margin-top: 16px">
+            <span class="step-num">3</span><strong>Bridge node walks outside, hits 4G</strong>
+            <button class="secondary" onclick="flushBridges()">📡 Bridges Upload to Backend</button>
+            <span class="small">(parallel — exercises idempotency)</span>
+        </div>
+
+        <div style="margin-top: 16px">
+            <button class="danger" onclick="resetMesh()">🗑 Reset Mesh + Cache</button>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h2>📱 Mesh Devices</h2>
+            <div id="devices"></div>
+        </div>
+
+        <div class="card">
+            <h2>🏦 Account Balances</h2>
+            <table id="accounts-table">
+                <thead><tr><th>VPA</th><th>Holder</th><th>Balance</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <p class="small" id="cacheInfo"></p>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+        <h2>📜 Transaction Ledger</h2>
+        <table id="tx-table">
+            <thead><tr>
+                <th>ID</th><th>From</th><th>To</th><th>Amount</th>
+                <th>Status</th><th>Bridge</th><th>Hops</th><th>Settled</th>
+            </tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+        <h2>🪵 Activity Log</h2>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script th:src="@{/js/dashboard.js}"></script>
+
+
+</body>
+</html>
