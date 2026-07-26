@@ -5,7 +5,7 @@
     <title>UPI Offline Mesh — Demo</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
-
+<body>
 <div class="container">
     <header class="hero-header">
     
@@ -43,9 +43,8 @@
     
     </header>
 
-    <div class="controls">
-        <h3 style="margin-top:0">🎬 Demo Flow</h3>
-
+    <div class="demo-card card">
+        <h2 >🎬 Demo Flow</h2>     
         <div>
             <span class="step-num">1</span><strong>Compose payment</strong> (simulates sender phone)
             <br>
@@ -80,6 +79,7 @@
         <div style="margin-top: 16px">
             <button class="danger" onclick="resetMesh()">🗑 Reset Mesh + Cache</button>
         </div>
+        
     </div>
 
     <div class="grid grid-2">
@@ -116,7 +116,5 @@
 </div>
 
 <script th:src="@{/js/dashboard.js}"></script>
-
-
 </body>
 </html>

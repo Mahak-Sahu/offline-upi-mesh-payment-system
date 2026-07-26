@@ -21,6 +21,23 @@ h2 {
     padding-bottom: 4px;
     margin-top: 32px;
 }
+.section-title {
+
+    margin-top: 0;
+
+    margin-bottom: 20px;
+
+    color: #58a6ff;
+
+    border-bottom: 1px solid #30363d;
+
+    padding-bottom: 12px;
+
+    font-size: 20px;
+
+    font-weight: 700;
+
+}
 
 .container {
     max-width: 1200px;
@@ -46,7 +63,9 @@ h2 {
     border-radius: 8px;
     padding: 16px;
 }
-
+.demo-card {
+    margin-bottom: 15px;
+}
 .device {
     border: 1px solid #30363d;
     border-radius: 6px;
@@ -190,24 +209,42 @@ th {
 }
 
 .controls {
-    background: #161b22;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #30363d;
-    margin-bottom: 16px;
-}
 
+    background: #161b22;
+
+    border: 1px solid #30363d;
+
+    border-radius: 12px;
+
+    padding: 22px;
+
+    margin-bottom: 18px;
+
+}
 .step-num {
-    display: inline-block;
-    background: #58a6ff;
-    color: white;
+
+    display: inline-flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    width: 28px;
+
+    height: 28px;
+
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    text-align: center;
-    line-height: 24px;
-    font-weight: 600;
-    margin-right: 8px;
+
+    background: #58a6ff;
+
+    color: #fff;
+
+    font-weight: bold;
+
+    margin-right: 10px;
+
+    font-size: 15px;
+
 }
 
 .balance {
@@ -316,3 +353,4 @@ th {
 
     background: #2ea043;
 }
+
