@@ -3,6 +3,151 @@ function log(msg) {
     const el = document.getElementById('log');
     el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg + '\n' + el.textContent;
 }
+function drawConnections() {
+
+    const topology = document.getElementById("mesh-topology");
+
+    if (!topology) return;
+
+    // remove previous svg
+    const old = document.getElementById("network-svg");
+    if (old) old.remove();
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+
+    svg.setAttribute("id", "network-svg");
+
+    svg.style.position = "absolute";
+    svg.style.left = "0";
+    svg.style.top = "0";
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+    svg.style.pointerEvents = "none";
+
+    topology.style.position = "relative";
+
+    topology.appendChild(svg);
+
+    const bridge = document.getElementById("bridge-node");
+    const internet = document.getElementById("internet-node");
+
+    const phones = [
+        document.getElementById("alice-node"),
+        document.getElementById("stranger1-node"),
+        document.getElementById("stranger2-node"),
+        document.getElementById("stranger3-node")
+    ];
+
+    function center(el, side = "center") {
+
+    const r = el.getBoundingClientRect();
+    const parent = topology.getBoundingClientRect();
+    switch(side){
+
+    case "top":
+        return {
+            x: r.left - parent.left + r.width/2,
+            y: r.top - parent.top
+        };
+
+    case "bottom":
+        return {
+            x: r.left - parent.left + r.width/2,
+            y: r.bottom - parent.top
+        };
+
+    case "left":
+        return {
+            x: r.left - parent.left,
+            y: r.top - parent.top + r.height/2
+        };
+
+    case "right":
+        return {
+            x: r.right - parent.left,
+            y: r.top - parent.top + r.height/2
+        };
+
+    default:
+        return {
+            x: r.left - parent.left + r.width/2,
+            y: r.top - parent.top + r.height/2
+        };
+}
+}
+
+    function line(a,b){
+
+    let startSide="bottom";
+    let endSide="top";
+
+    if(a.id==="bridge-node"){
+        startSide="bottom";
+    }
+
+    if(a.id==="internet-node"){
+        startSide="bottom";
+    }
+
+    const p1=center(a,startSide);
+    const p2=center(b,endSide);
+
+    const l=document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line"
+    );
+
+    l.setAttribute("x1",p1.x);
+    l.setAttribute("y1",p1.y);
+
+    l.setAttribute("x2",p2.x);
+    l.setAttribute("y2",p2.y);
+
+    l.setAttribute("stroke","#2f81f7");
+    l.setAttribute("stroke-width","4");
+    l.setAttribute("stroke-linecap","round");
+
+    svg.appendChild(l);
+}
+
+    line(internet, bridge);
+
+    phones.forEach(p => line(bridge, p));
+
+}
+function movePacket(fromId, toId) {
+
+    const packet = document.getElementById("packet");
+
+    const from = document.getElementById(fromId);
+
+    const to = document.getElementById(toId);
+
+    if(!packet || !from || !to) return;
+
+    const topology = document.getElementById("mesh-topology");
+
+    const parent = topology.getBoundingClientRect();
+
+    const a = from.getBoundingClientRect();
+
+    const b = to.getBoundingClientRect();
+
+    packet.style.display="block";
+
+    packet.style.left=(a.left-parent.left+a.width/2-9)+"px";
+
+    packet.style.top=(a.top-parent.top+a.height/2-9)+"px";
+
+    requestAnimationFrame(()=>{
+
+        packet.style.left=(b.left-parent.left+b.width/2-9)+"px";
+
+        packet.style.top=(b.top-parent.top+b.height/2-9)+"px";
+
+    });
+
+}
 
 async function refresh() {
     // Mesh state
@@ -39,7 +184,9 @@ async function refresh() {
             <td class="small">${new Date(t.settledAt).toLocaleTimeString()}</td>
         </tr>
     `).join('');
+    drawConnections();
 }
+
 
 async function sendPacket() {
     const body = {
@@ -56,12 +203,20 @@ async function sendPacket() {
     }).then(r => r.json());
     log(`📤 Packet ${r.packetId.substring(0,8)} encrypted & injected at ${r.injectedAt} (TTL ${r.ttl})`);
     log(`   ciphertext (truncated): ${r.ciphertextPreview}`);
+    movePacket("alice-node","stranger1-node");
     refresh();
 }
 
 async function gossip() {
     const r = await fetch('/api/mesh/gossip', {method: 'POST'}).then(r => r.json());
     log(`🔄 Gossip: ${r.transfers} transfer(s) — ${JSON.stringify(r.deviceCounts)}`);
+    movePacket("stranger1-node","stranger2-node");
+
+setTimeout(()=>{
+
+    movePacket("stranger2-node","bridge-node");
+
+},900);
     refresh();
 }
 
@@ -69,9 +224,17 @@ async function flushBridges() {
     const r = await fetch('/api/mesh/flush', {method: 'POST'}).then(r => r.json());
     log(`📡 ${r.uploadsAttempted} bridge upload(s):`);
     r.results.forEach(res => {
+        if(res.outcome==="RETRY_REQUIRED"){
+
+    log("⚠ Another transaction modified this account.");
+
+    log("🔁 Please retry this payment.");
+
+}
         log(`   ${res.bridgeNode} packet ${res.packetId} → ${res.outcome}` +
             (res.reason ? ` (${res.reason})` : ''));
     });
+    movePacket("bridge-node","internet-node");
     refresh();
 }
 
@@ -82,4 +245,6 @@ async function resetMesh() {
 }
 
 refresh();
-setInterval(refresh, 3000);
+setTimeout(drawConnections,300);
+window.addEventListener("resize", drawConnections);
+setInterval(refresh,3000);

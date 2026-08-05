@@ -1,16 +1,17 @@
 package com.demo.upimesh.service;
 
-import com.demo.upimesh.crypto.HybridCryptoService;
-import com.demo.upimesh.model.MeshPacket;
-import com.demo.upimesh.model.PaymentInstruction;
-import com.demo.upimesh.model.Transaction;
+import java.time.Instant;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import com.demo.upimesh.crypto.HybridCryptoService;
+import com.demo.upimesh.model.MeshPacket;
+import com.demo.upimesh.model.PaymentInstruction;
+import com.demo.upimesh.model.Transaction;
 
 /**
  * Orchestrates the full server-side pipeline for one inbound packet from a
@@ -72,10 +73,26 @@ public class BridgeIngestionService {
             Transaction tx = settlement.settle(instruction, packetHash, bridgeNodeId, hopCount);
             return IngestResult.settled(packetHash, tx);
 
-        } catch (Exception e) {
-            log.error("Ingestion error: {}", e.getMessage(), e);
-            return IngestResult.invalid("?", "internal_error: " + e.getMessage());
-        }
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+
+    log.warn("Optimistic locking conflict detected. Client should retry.");
+
+    return IngestResult.retryRequired(
+            "?",
+            "Another transaction updated this account. Please retry."
+    );
+
+}
+catch (Exception e) {
+
+    log.error("Ingestion error: {}", e.getMessage(), e);
+
+    return IngestResult.invalid(
+            "?",
+            "internal_error: " + e.getMessage()
+    );
+
+}
     }
 
     public record IngestResult(String outcome, String packetHash, String reason, Long transactionId) {
@@ -88,5 +105,15 @@ public class BridgeIngestionService {
         public static IngestResult invalid(String hash, String reason) {
             return new IngestResult("INVALID", hash, reason, null);
         }
+        public static IngestResult retryRequired(String hash, String reason) {
+
+    return new IngestResult(
+            "RETRY_REQUIRED",
+            hash,
+            reason,
+            null
+    );
+
+}
     }
 }

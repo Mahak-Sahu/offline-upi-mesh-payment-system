@@ -354,3 +354,172 @@ th {
     background: #2ea043;
 }
 
+.status-RETRY_REQUIRED {
+
+    color: #d29922;
+
+    font-weight: 700;
+
+}
+
+/* =========================================
+        LIVE NETWORK TOPOLOGY
+========================================= */
+
+.topology-card {
+
+    margin-bottom: 18px;
+
+}
+
+#mesh-topology {
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+}
+
+.internet-node {
+
+    background: #1f6feb;
+
+    color: white;
+
+    padding: 10px 18px;
+
+    border-radius: 30px;
+
+    font-weight: bold;
+
+}
+
+.vertical-line {
+
+    width: 3px;
+
+    height: 40px;
+
+    background: #58a6ff;
+
+}
+
+.branch-lines {
+
+    width: 100%;
+
+    display: flex;
+
+    justify-content: space-evenly;
+
+    margin-top: 30px;
+
+}
+
+.network-node {
+
+    width: 140px;
+
+    text-align: center;
+
+    background: #21262d;
+
+    border: 2px solid #30363d;
+
+    border-radius: 12px;
+
+    padding: 18px;
+
+    transition: .3s;
+
+    font-weight: bold;
+
+}
+
+.network-node:hover {
+
+    transform: translateY(-5px);
+
+}
+
+.bridge {
+    
+    background: #052e16;
+    border-color: #2ea043;
+
+}
+/* ============================
+      PACKET ANIMATION
+============================ */
+
+#packet {
+
+    position: absolute;
+
+    width: 18px;
+
+    height: 18px;
+
+    border-radius: 50%;
+
+    background: #ffd43b;
+
+    box-shadow: 0 0 15px #ffd43b;
+
+    transition: all .9s ease;
+
+    display: none;
+
+    z-index: 999;
+
+}
+v#mesh-topology{
+    position:relative;
+}
+
+#network-svg{
+    position:absolute;
+    left:0;
+    top:0;
+    width:100%;
+    height:100%;
+    z-index:0;
+    pointer-events:none;
+}
+
+.network-node,
+.internet-node{
+    position:relative;
+    z-index:2;
+}
+
+.vertical-line{
+    position:relative;
+    z-index:2;
+}
+#mesh-topology {
+    position: relative;
+}
+
+#network-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.network-node,
+.internet-node {
+    position: relative;
+    z-index: 2;
+}
+
+.vertical-line {
+    position: relative;
+    z-index: 2;
+}
