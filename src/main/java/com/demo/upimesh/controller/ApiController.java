@@ -24,6 +24,7 @@ import com.demo.upimesh.service.BridgeIngestionService;
 import com.demo.upimesh.service.DemoService;
 import com.demo.upimesh.service.IdempotencyService;
 import com.demo.upimesh.service.MeshSimulatorService;
+import com.demo.upimesh.service.SettlementService;
 import com.demo.upimesh.service.VirtualDevice;
 
 /**
@@ -43,6 +44,7 @@ public class ApiController {
     @Autowired private DemoService demo;
     @Autowired private MeshSimulatorService mesh;
     @Autowired private BridgeIngestionService bridge;
+    @Autowired private SettlementService settlement;
     @Autowired private AccountRepository accountRepo;
     @Autowired private TransactionRepository txRepo;
     @Autowired private IdempotencyService idempotency;
@@ -110,7 +112,7 @@ public class ApiController {
     "devices", deviceData,
 
     "routes", mesh.getPacketRoutes(),
-
+            //"routes", mesh.getHopHistory(),
     "hopHistory", mesh.getHopHistory(),
 
     "idempotencyCacheSize", idempotency.size()
@@ -179,6 +181,19 @@ BridgeIngestionService.IngestResult r =
         idempotency.clear();
         return Map.of("status", "mesh and idempotency cache cleared");
     }
+    @PostMapping("/demo/reset")
+public Map<String, Object> resetDemo() {
+
+    settlement.resetDemoAccounts();
+
+    mesh.resetMesh();
+
+    idempotency.clear();
+
+    return Map.of(
+            "status", "Demo data reset successfully"
+    );
+}
 
     // -------------------------------------------------------------- bridge
 

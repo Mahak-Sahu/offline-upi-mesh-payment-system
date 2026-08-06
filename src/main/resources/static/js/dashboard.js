@@ -252,27 +252,7 @@ function updateTopology(devices){
     });
 
 }
-function getNodeCenter(id){
 
-    const node=document.getElementById(
-        id.replace("phone-","")+"-node"
-    );
-
-    const topology=document.getElementById("mesh-topology");
-
-    const r=node.getBoundingClientRect();
-
-    const t=topology.getBoundingClientRect();
-
-    return{
-
-        x:r.left-t.left+r.width/2,
-
-        y:r.top-t.top+r.height/2
-
-    };
-
-}
 function getNodeCenter(deviceId){
 
     const htmlId = deviceId
@@ -364,7 +344,7 @@ async function gossip() {
 
 setTimeout(()=>{
 
-    movePacket("stranger2-node","bridge-node");
+   movePacket("stranger2-node","bridge-node");
 
 },900);
     refresh();
@@ -389,7 +369,7 @@ async function flushBridges() {
 }
 
 async function resetMesh() {
-    await fetch('/api/mesh/reset', {method: 'POST'});
+    await fetch('/api/demo/reset', {method: 'POST'});
     log('🗑 mesh + idempotency cache cleared');
     refresh();
 }

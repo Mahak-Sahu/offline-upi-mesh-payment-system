@@ -1,18 +1,19 @@
 package com.demo.upimesh.service;
 
-import com.demo.upimesh.model.Account;
-import com.demo.upimesh.model.AccountRepository;
-import com.demo.upimesh.model.PaymentInstruction;
-import com.demo.upimesh.model.Transaction;
-import com.demo.upimesh.model.TransactionRepository;
+import java.math.BigDecimal;
+import java.time.Instant;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.Instant;
+import com.demo.upimesh.model.Account;
+import com.demo.upimesh.model.AccountRepository;
+import com.demo.upimesh.model.PaymentInstruction;
+import com.demo.upimesh.model.Transaction;
+import com.demo.upimesh.model.TransactionRepository;
 
 /**
  * Where the actual ledger update happens. Wrapped in a DB transaction so either
@@ -93,4 +94,28 @@ public class SettlementService {
         tx.setStatus(Transaction.Status.REJECTED);
         return transactions.save(tx);
     }
+    @Transactional
+public void resetDemoAccounts() {
+
+    transactions.deleteAll();
+
+    Account alice = accounts.findById("alice@demo").orElseThrow();
+    alice.setBalance(new BigDecimal("5000.00"));
+
+    Account bob = accounts.findById("bob@demo").orElseThrow();
+    bob.setBalance(new BigDecimal("1500.00"));
+
+    Account carol = accounts.findById("carol@demo").orElseThrow();
+    carol.setBalance(new BigDecimal("2500.00"));
+
+    Account dave = accounts.findById("dave@demo").orElseThrow();
+    dave.setBalance(new BigDecimal("500.00"));
+
+    accounts.save(alice);
+    accounts.save(bob);
+    accounts.save(carol);
+    accounts.save(dave);
+
+    log.info("Demo accounts reset.");
+}
 }
