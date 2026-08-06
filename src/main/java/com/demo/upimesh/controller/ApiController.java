@@ -1,14 +1,30 @@
 package com.demo.upimesh.controller;
 
-import com.demo.upimesh.crypto.ServerKeyHolder;
-import com.demo.upimesh.model.*;
-import com.demo.upimesh.service.*;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
-import java.util.*;
+import com.demo.upimesh.crypto.ServerKeyHolder;
+import com.demo.upimesh.model.Account;
+import com.demo.upimesh.model.AccountRepository;
+import com.demo.upimesh.model.MeshPacket;
+import com.demo.upimesh.model.Transaction;
+import com.demo.upimesh.model.TransactionRepository;
+import com.demo.upimesh.service.BridgeIngestionService;
+import com.demo.upimesh.service.DemoService;
+import com.demo.upimesh.service.IdempotencyService;
+import com.demo.upimesh.service.MeshSimulatorService;
+import com.demo.upimesh.service.VirtualDevice;
 
 /**
  * Public REST surface.
@@ -90,9 +106,16 @@ public class ApiController {
             ));
         }
         return Map.of(
-                "devices", deviceData,
-                "idempotencyCacheSize", idempotency.size()
-        );
+
+    "devices", deviceData,
+
+    "routes", mesh.getPacketRoutes(),
+
+    "hopHistory", mesh.getHopHistory(),
+
+    "idempotencyCacheSize", idempotency.size()
+
+);
     }
 
     @PostMapping("/mesh/gossip")
@@ -119,8 +142,20 @@ public class ApiController {
         List<Map<String, Object>> results = new ArrayList<>();
         // Upload them in parallel to actually exercise concurrent idempotency.
         uploads.parallelStream().forEach(up -> {
-            BridgeIngestionService.IngestResult r =
-                    bridge.ingest(up.packet(), up.bridgeNodeId(), 5 - up.packet().getTtl());
+            List<String> route = mesh.getPacketRoutes().get(up.packet().getPacketId());
+
+int hopCount = 0;
+
+if (route != null) {
+    hopCount = route.size() - 1;
+}
+
+BridgeIngestionService.IngestResult r =
+        bridge.ingest(
+                up.packet(),
+                up.bridgeNodeId(),
+                hopCount
+        );
             synchronized (results) {
                 results.add(Map.of(
                         "bridgeNode", up.bridgeNodeId(),

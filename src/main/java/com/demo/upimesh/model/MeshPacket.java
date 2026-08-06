@@ -1,8 +1,11 @@
 package com.demo.upimesh.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Min;
 
 /**
  * The over-the-wire format. This is what hops from phone to phone via Bluetooth.
@@ -29,8 +32,10 @@ public class MeshPacket {
     private Long createdAt; // epoch millis, when sender created the packet
 
     @NotBlank
+
     private String ciphertext; // base64(RSA-encrypted AES key + AES-GCM ciphertext)
 
+    private List<String> route = new ArrayList<>();
     public MeshPacket() {}
 
     public String getPacketId() { return packetId; }
@@ -44,4 +49,12 @@ public class MeshPacket {
 
     public String getCiphertext() { return ciphertext; }
     public void setCiphertext(String ciphertext) { this.ciphertext = ciphertext; }
+
+    public List<String> getRoute() {
+    return route;
+}
+
+public void setRoute(List<String> route) {
+    this.route = route;
+}
 }

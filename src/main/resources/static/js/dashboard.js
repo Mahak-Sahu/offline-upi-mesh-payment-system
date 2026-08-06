@@ -3,7 +3,7 @@ function log(msg) {
     const el = document.getElementById('log');
     el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg + '\n' + el.textContent;
 }
-function drawConnections() {
+/*function drawConnections() {
 
     const topology = document.getElementById("mesh-topology");
 
@@ -31,12 +31,10 @@ function drawConnections() {
     const bridge = document.getElementById("bridge-node");
     const internet = document.getElementById("internet-node");
 
-    const phones = [
-        document.getElementById("alice-node"),
-        document.getElementById("stranger1-node"),
-        document.getElementById("stranger2-node"),
-        document.getElementById("stranger3-node")
-    ];
+    const alice = document.getElementById("alice-node");
+    const s1 = document.getElementById("stranger1-node");
+    const s2 = document.getElementById("stranger2-node");
+    const s3 = document.getElementById("stranger3-node");
 
     function center(el, side = "center") {
 
@@ -110,11 +108,26 @@ function drawConnections() {
     svg.appendChild(l);
 }
 
-    line(internet, bridge);
+    // Internet → Bridge
+line(internet, bridge);
 
-    phones.forEach(p => line(bridge, p));
+// Bridge → S1
+line(bridge, s1);
+
+// S1 → S3
+line(s1, s3);
+
+// S1 → Alice
+line(s1, alice);
+
+// Alice → S2
+line(alice, s2);
+
+// S2 → S3
+line(s2, s3);
 
 }
+ */ 
 function movePacket(fromId, toId) {
 
     const packet = document.getElementById("packet");
@@ -152,6 +165,7 @@ function movePacket(fromId, toId) {
 async function refresh() {
     // Mesh state
     const m = await fetch('/api/mesh/state').then(r => r.json());
+    window.meshState = m;
     const devicesDiv = document.getElementById('devices');
     devicesDiv.innerHTML = m.devices.map(d => `
         <div class="device ${d.hasInternet ? 'bridge' : 'offline'}">
@@ -184,7 +198,143 @@ async function refresh() {
             <td class="small">${new Date(t.settledAt).toLocaleTimeString()}</td>
         </tr>
     `).join('');
-    drawConnections();
+    //drawConnections();
+    updateTopology(m.devices);
+}
+function updateTopology(devices){
+
+    const map = {
+        "phone-alice":"alice-node",
+        "phone-stranger1":"stranger1-node",
+        "phone-stranger2":"stranger2-node",
+        "phone-stranger3":"stranger3-node",
+        "phone-bridge":"bridge-node"
+    };
+
+    // Reset all nodes
+    Object.values(map).forEach(id=>{
+
+        const node=document.getElementById(id);
+
+        if(!node) return;
+
+        node.classList.remove(
+            "node-online",
+            "node-offline",
+            "node-holding",
+            "node-bridge"
+        );
+
+    });
+
+    devices.forEach(device=>{
+
+        const id=map[device.deviceId];
+
+        const node=document.getElementById(id);
+
+        if(!node) return;
+
+        if(device.hasInternet){
+
+            node.classList.add("node-bridge");
+
+        }else if(device.packetCount>0){
+
+            node.classList.add("node-holding");
+
+        }else{
+
+            node.classList.add("node-offline");
+
+        }
+
+    });
+
+}
+function getNodeCenter(id){
+
+    const node=document.getElementById(
+        id.replace("phone-","")+"-node"
+    );
+
+    const topology=document.getElementById("mesh-topology");
+
+    const r=node.getBoundingClientRect();
+
+    const t=topology.getBoundingClientRect();
+
+    return{
+
+        x:r.left-t.left+r.width/2,
+
+        y:r.top-t.top+r.height/2
+
+    };
+
+}
+function getNodeCenter(deviceId){
+
+    const htmlId = deviceId
+        .replace("phone-", "")
+        + "-node";
+
+    const node = document.getElementById(htmlId);
+
+    const topology = document.getElementById("mesh-topology");
+
+    const r = node.getBoundingClientRect();
+    const p = topology.getBoundingClientRect();
+
+    return {
+
+        x: r.left - p.left + r.width / 2,
+        y: r.top - p.top + r.height / 2
+
+    };
+
+}
+async function animateHop(fromDevice, toDevice){
+
+    const packet = document.getElementById("packet");
+
+    const from = getNodeCenter(fromDevice);
+    const to = getNodeCenter(toDevice);
+
+    packet.style.display = "block";
+
+    // Start position
+    packet.style.left = (from.x - 9) + "px";
+packet.style.top  = (from.y - 9) + "px";
+
+    // Browser ko first position render karne do
+    await new Promise(r => requestAnimationFrame(r));
+
+    // Move
+    packet.style.left = (to.x - 9) + "px";
+packet.style.top  = (to.y - 9) + "px";
+
+    // Wait for animation
+    await new Promise(r => setTimeout(r, 900));
+
+}
+async function animateRoute(packetId) {
+
+    const hops = window.meshState.routes[packetId];
+
+    if (!hops || hops.length === 0) {
+        return;
+    }
+
+    for (const hop of hops) {
+
+        await animateHop(
+            hop.fromNode,
+            hop.toNode
+        );
+
+    }
+
 }
 
 
@@ -245,6 +395,6 @@ async function resetMesh() {
 }
 
 refresh();
-setTimeout(drawConnections,300);
-window.addEventListener("resize", drawConnections);
+//setTimeout(drawConnections,300);
+//window.addEventListener("resize", drawConnections);
 setInterval(refresh,3000);

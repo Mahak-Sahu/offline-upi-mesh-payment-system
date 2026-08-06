@@ -91,40 +91,45 @@
     
         <div id="mesh-topology">
     
+            <!-- Internet -->
             <div id="internet-node" class="internet-node">
                 ☁ Internet
             </div>
-            <div id="packet"></div>
-            <div class="vertical-line"></div>
     
-            <div id="bridge-node" class="network-node bridge">
+            <!-- Bridge -->
+            <div id="bridge-node" class="network-node node-bridge">
                 🌐 Bridge Phone
             </div>
     
-            <div class="branch-lines">
+            <!-- Upper Row -->
+            <div class="node-row top-row">
     
-                <div class="network-node" id="alice-node">
-                    📱 Alice
-                </div>
-    
-                <div class="network-node" id="stranger1-node">
+                <div id="stranger1-node" class="network-node">
                     📱 Stranger 1
                 </div>
     
-                <div class="network-node" id="stranger2-node">
-                    📱 Stranger 2
-                </div>
-    
-                <div class="network-node" id="stranger3-node">
+                <div id="stranger3-node" class="network-node">
                     📱 Stranger 3
                 </div>
     
             </div>
     
+            <!-- Bottom Row -->
+            <div class="node-row bottom-row">
+    
+                <div id="alice-node" class="network-node">
+                    📱 Alice
+                </div>
+    
+                <div id="stranger2-node" class="network-node">
+                    📱 Stranger 2
+                </div>
+    
+            </div>
+            <div id="packet"></div>
         </div>
     
     </div>
-
     <div class="grid grid-2">
         <div class="card">
             <h2>📱 Mesh Devices</h2>
