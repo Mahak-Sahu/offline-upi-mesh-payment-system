@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.annotation.SessionScope;
 
 import com.demo.upimesh.model.Hop;
 import com.demo.upimesh.model.MeshPacket;
@@ -29,6 +30,7 @@ import com.demo.upimesh.model.MeshPacket;
  */
 
 @Service
+@SessionScope
 public class MeshSimulatorService {
 
     private static final Logger log = LoggerFactory.getLogger(MeshSimulatorService.class);
