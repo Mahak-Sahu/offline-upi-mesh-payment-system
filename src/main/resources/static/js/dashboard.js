@@ -300,21 +300,38 @@ packet.style.top  = (to.y - 9) + "px";
 }
 async function animateRoute(packetId) {
 
-    const hops = window.meshState.routes[packetId];
+    const route =
+        window.meshState?.routes?.[packetId];
 
-    if (!hops || hops.length === 0) {
+    if (!route || route.length < 2) {
         return;
     }
 
-    for (const hop of hops) {
+    /*
+     * Backend gives the actual route:
+     *
+     * phone-alice
+     * phone-stranger2
+     * phone-stranger1
+     * phone-bridge
+     *
+     * Frontend simply visualizes that route.
+     */
 
-        await animateHop(
-            hop.fromNode,
-            hop.toNode
+    for (let i = 0; i < route.length - 1; i++) {
+
+        const fromDevice = route[i];
+        const toDevice = route[i + 1];
+
+        log(
+            `📦 LIVE MESH: ${fromDevice} → ${toDevice}`
         );
 
+        await animateHop(
+            fromDevice,
+            toDevice
+        );
     }
-
 }
 
 
@@ -404,6 +421,21 @@ async function gossip() {
             log(
                 `🔄 Gossip hop: ${result.transfers} transfer(s) — ${JSON.stringify(result.deviceCounts)}`
             );
+            if (
+                result.transfers === 1 &&
+                result.from &&
+                result.to
+            ) {
+
+                log(
+                    `📦 LIVE MESH: ${result.from} → ${result.to} | TTL=${result.ttl}`
+                );
+
+                await animateHop(
+                    result.from,
+                    result.to
+                );
+            }
 
             // Update current mesh state
             await refresh();
@@ -419,43 +451,24 @@ async function gossip() {
                 break;
             }
 
-            /*
-             * Check current route to see whether
-             * the packet has reached the bridge.
-             */
-            const routes = window.meshState?.routes || {};
+            if (result.reachedBridge) {
 
-            const packetIds = Object.keys(routes);
+                log("🌐 Packet reached Bridge Phone!");
 
-            if (packetIds.length > 0) {
+                const uploadButton =
+                    document.getElementById("uploadButton");
 
-                const packetId = packetIds[0];
+                if (uploadButton) {
 
-                const route = routes[packetId];
+                    uploadButton.disabled = false;
 
-                if (
-                    route &&
-                    route.length > 0 &&
-                    route[route.length - 1] === "phone-bridge"
-                ) {
-
-                    log("🌐 Packet reached Bridge Phone!");
-
-                    const uploadButton =
-                        document.getElementById("uploadButton");
-
-                    if (uploadButton) {
-
-                        uploadButton.disabled = false;
-
-                        uploadButton.textContent =
-                            "📡 Upload to Backend";
-                    }
-
-                    break;
+                    uploadButton.textContent =
+                        "📡 Upload to Backend";
                 }
-            }
 
+                break;
+            }
+            
             /*
              * Wait before the next automatic gossip round.
              */

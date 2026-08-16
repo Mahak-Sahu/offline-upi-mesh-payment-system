@@ -121,13 +121,21 @@ public class ApiController {
     }
 
     @PostMapping("/mesh/gossip")
-    public Map<String, Object> meshGossip() {
-        MeshSimulatorService.GossipResult r = mesh.gossipOnce();
-        return Map.of(
-                "transfers", r.transfers(),
-                "deviceCounts", r.deviceCounts()
-        );
-    }
+public Map<String, Object> meshGossip() {
+
+    MeshSimulatorService.GossipResult r =
+            mesh.gossipOnce();
+
+    return Map.of(
+            "transfers", r.transfers(),
+            "deviceCounts", r.deviceCounts(),
+            "packetId", r.packetId(),
+            "from", r.from(),
+            "to", r.to(),
+            "ttl", r.ttl(),
+            "reachedBridge", r.reachedBridge()
+    );
+}
 
     /**
      * "All bridge nodes simultaneously walk outside and get 4G."

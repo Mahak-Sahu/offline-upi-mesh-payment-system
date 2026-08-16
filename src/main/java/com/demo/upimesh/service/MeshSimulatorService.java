@@ -104,7 +104,15 @@ public synchronized GossipResult gossipOnce() {
     // The frontend will call this automatically after a delay.
 
     if (packetRoutes.isEmpty()) {
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     // Demo currently works with one active packet at a time.
@@ -113,13 +121,29 @@ public synchronized GossipResult gossipOnce() {
             .orElse(null);
 
     if (packetId == null) {
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     List<String> route = packetRoutes.get(packetId);
 
     if (route == null || route.isEmpty()) {
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     String currentNodeId = route.get(route.size() - 1);
@@ -127,13 +151,29 @@ public synchronized GossipResult gossipOnce() {
     VirtualDevice current = devices.get(currentNodeId);
 
     if (current == null) {
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     // If packet has already reached bridge, gossip is finished.
     if (current.hasInternet()) {
         log.info("Packet {} already reached bridge.", packetId.substring(0, 8));
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     // Find the actual packet currently held by this node.
@@ -146,12 +186,28 @@ public synchronized GossipResult gossipOnce() {
     if (packet == null) {
         log.warn("Packet {} is not held by current node {}",
                 packetId.substring(0, 8), currentNodeId);
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     if (packet.getTtl() <= 0) {
         log.warn("Packet {} TTL exhausted.", packetId.substring(0, 8));
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     /*
@@ -221,7 +277,15 @@ public synchronized GossipResult gossipOnce() {
                 currentNodeId
         );
 
-        return new GossipResult(0, snapshotMap());
+        return new GossipResult(
+        0,
+        snapshotMap(),
+        null,
+        null,
+        null,
+        0,
+        false
+);
     }
 
     // Pick one valid stranger randomly.
@@ -264,9 +328,14 @@ public synchronized GossipResult gossipOnce() {
     );
 
     return new GossipResult(
-            1,
-            snapshotMap()
-    );
+        1,
+        snapshotMap(),
+        packetId,
+        currentNodeId,
+        chosen.getDeviceId(),
+        copy.getTtl(),
+        chosen.hasInternet()
+);
 }
 
 
@@ -357,7 +426,15 @@ private int countStrangerHops(List<String> route) {
     return packetRoutes;
 }
 
-    public record GossipResult(int transfers, Map<String, Integer> deviceCounts) {}
+    public record GossipResult(
+        int transfers,
+        Map<String, Integer> deviceCounts,
+        String packetId,
+        String from,
+        String to,
+        int ttl,
+        boolean reachedBridge
+) {}
     public record BridgeUpload(String bridgeNodeId, MeshPacket packet) {}
     public Map<String,List<Hop>> getHopHistory() {
 
