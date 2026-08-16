@@ -138,43 +138,88 @@ public class ApiController {
      * concurrent POSTs of the same ciphertext, and only one should settle.
      */
     @PostMapping("/mesh/flush")
-    public Map<String, Object> meshFlush() {
-        List<MeshSimulatorService.BridgeUpload> uploads = mesh.collectBridgeUploads();
+public Map<String, Object> meshFlush() {
 
-        List<Map<String, Object>> results = new ArrayList<>();
-        // Upload them in parallel to actually exercise concurrent idempotency.
-        uploads.parallelStream().forEach(up -> {
-            List<String> route = mesh.getPacketRoutes().get(up.packet().getPacketId());
+    List<MeshSimulatorService.BridgeUpload> uploads =
+            mesh.collectBridgeUploads();
 
-int hopCount = 0;
+    List<Map<String, Object>> results = new ArrayList<>();
 
-if (route != null) {
-    hopCount = route.size() - 1;
+    uploads.parallelStream().forEach(up -> {
+
+        String packetId = up.packet().getPacketId();
+
+        List<String> route =
+                mesh.getPacketRoutes().get(packetId);
+
+        int hopCount = 0;
+
+        if (route != null) {
+            hopCount = route.size() - 1;
+        }
+
+        BridgeIngestionService.IngestResult r =
+                bridge.ingest(
+                        up.packet(),
+                        up.bridgeNodeId(),
+                        hopCount
+                );
+
+        synchronized (results) {
+
+            results.add(
+                    Map.of(
+                            "bridgeNode",
+                            up.bridgeNodeId(),
+
+                            "packetId",
+                            packetId.substring(
+                                    0,
+                                    Math.min(8, packetId.length())
+                            ),
+
+                            "outcome",
+                            r.outcome(),
+
+                            "reason",
+                            r.reason() == null
+                                    ? ""
+                                    : r.reason(),
+
+                            "transactionId",
+                            r.transactionId() == null
+                                    ? -1
+                                    : r.transactionId()
+                    )
+            );
+        }
+
+        /*
+         * IMPORTANT:
+         *
+         * Remove the packet only when the backend
+         * has successfully completed processing.
+         *
+         * RETRY_REQUIRED means the transaction was not
+         * completed, so we keep the packet for retry.
+         */
+        if ("SETTLED".equals(r.outcome())
+                || "DUPLICATE_DROPPED".equals(r.outcome())
+                || "INVALID".equals(r.outcome())) {
+
+            mesh.clearPacket(packetId);
+        }
+
+    });
+
+    return Map.of(
+            "uploadsAttempted",
+            uploads.size(),
+
+            "results",
+            results
+    );
 }
-
-BridgeIngestionService.IngestResult r =
-        bridge.ingest(
-                up.packet(),
-                up.bridgeNodeId(),
-                hopCount
-        );
-            synchronized (results) {
-                results.add(Map.of(
-                        "bridgeNode", up.bridgeNodeId(),
-                        "packetId", up.packet().getPacketId().substring(0, 8),
-                        "outcome", r.outcome(),
-                        "reason", r.reason() == null ? "" : r.reason(),
-                        "transactionId", r.transactionId() == null ? -1 : r.transactionId()
-                ));
-            }
-        });
-
-        return Map.of(
-                "uploadsAttempted", uploads.size(),
-                "results", results
-        );
-    }
-
     @PostMapping("/mesh/reset")
     public Map<String, Object> meshReset() {
         mesh.resetMesh();

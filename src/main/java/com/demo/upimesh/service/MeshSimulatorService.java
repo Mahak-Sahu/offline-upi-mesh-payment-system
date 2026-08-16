@@ -27,6 +27,7 @@ import com.demo.upimesh.model.MeshPacket;
  * /api/mesh/flush endpoint causes it to actually POST that packet to our
  * backend — simulating the moment a phone walks outside and gets 4G.
  */
+
 @Service
 public class MeshSimulatorService {
 
@@ -91,100 +92,213 @@ public class MeshSimulatorService {
      * For the demo we let everyone gossip with everyone in one round, which
      * is equivalent to "fast-forward N rounds of pairwise gossip".
      */
-    public GossipResult gossipOnce() {
+    private static final int MIN_STRANGER_HOPS = 2;
+    private static final int MAX_STRANGER_HOPS = 2;
 
-    int transfers = 0;
+public synchronized GossipResult gossipOnce() {
+    
 
-    List<VirtualDevice> deviceList = new ArrayList<>(devices.values());
+    // We simulate ONE real mesh hop per gossip call.
+    // The frontend will call this automatically after a delay.
 
-    // Snapshot of current packets
-    Map<String, List<MeshPacket>> snapshot = new HashMap<>();
-
-    for (VirtualDevice d : deviceList) {
-        snapshot.put(d.getDeviceId(),
-                new ArrayList<>(d.getHeldPackets()));
+    if (packetRoutes.isEmpty()) {
+        return new GossipResult(0, snapshotMap());
     }
 
-    for (VirtualDevice src : deviceList) {
+    // Demo currently works with one active packet at a time.
+    String packetId = packetRoutes.keySet().stream()
+            .findFirst()
+            .orElse(null);
 
-        for (MeshPacket pkt : snapshot.get(src.getDeviceId())) {
+    if (packetId == null) {
+        return new GossipResult(0, snapshotMap());
+    }
 
-            if (pkt.getTtl() <= 0)
-                continue;
+    List<String> route = packetRoutes.get(packetId);
 
-            // Build candidate neighbours
-            List<VirtualDevice> candidates = new ArrayList<>();
+    if (route == null || route.isEmpty()) {
+        return new GossipResult(0, snapshotMap());
+    }
 
-            for (VirtualDevice dst : deviceList) {
+    String currentNodeId = route.get(route.size() - 1);
 
-                if (dst == src)
-                    continue;
+    VirtualDevice current = devices.get(currentNodeId);
 
-                if (dst.holds(pkt.getPacketId()))
-                    continue;
+    if (current == null) {
+        return new GossipResult(0, snapshotMap());
+    }
 
-                candidates.add(dst);
-            }
+    // If packet has already reached bridge, gossip is finished.
+    if (current.hasInternet()) {
+        log.info("Packet {} already reached bridge.", packetId.substring(0, 8));
+        return new GossipResult(0, snapshotMap());
+    }
 
-            if (candidates.isEmpty())
-                continue;
+    // Find the actual packet currently held by this node.
+    MeshPacket packet = current.getHeldPackets()
+            .stream()
+            .filter(p -> packetId.equals(p.getPacketId()))
+            .findFirst()
+            .orElse(null);
 
-            // Prefer bridge if available
-            VirtualDevice chosen = null;
+    if (packet == null) {
+        log.warn("Packet {} is not held by current node {}",
+                packetId.substring(0, 8), currentNodeId);
+        return new GossipResult(0, snapshotMap());
+    }
 
-            for (VirtualDevice d : candidates) {
+    if (packet.getTtl() <= 0) {
+        log.warn("Packet {} TTL exhausted.", packetId.substring(0, 8));
+        return new GossipResult(0, snapshotMap());
+    }
 
-                if (d.hasInternet()) {
-                    chosen = d;
-                    break;
-                }
-            }
+    /*
+     * Number of stranger hops already completed.
+     *
+     * Example:
+     *
+     * [Alice]
+     * strangerHops = 0
+     *
+     * [Alice, Stranger1]
+     * strangerHops = 1
+     *
+     * [Alice, Stranger1, Stranger2]
+     * strangerHops = 2
+     */
+    int strangerHops = (int) route.stream()
+            .filter(nodeId ->
+                    nodeId.startsWith("phone-stranger"))
+            .count();
 
-            // Otherwise choose random neighbour
-            if (chosen == null) {
+    List<VirtualDevice> candidates = new ArrayList<>();
 
-                chosen = candidates.get(
-                        random.nextInt(candidates.size())
-                );
-            }
+    for (VirtualDevice device : devices.values()) {
 
-            MeshPacket copy = new MeshPacket();
+        // Never stay on the same node.
+        if (device.getDeviceId().equals(currentNodeId)) {
+            continue;
+        }
 
-            copy.setPacketId(pkt.getPacketId());
-            copy.setCiphertext(pkt.getCiphertext());
-            copy.setCreatedAt(pkt.getCreatedAt());
-            copy.setTtl(pkt.getTtl() - 1);
+        // Never visit a node that already appears in this route.
+        if (route.contains(device.getDeviceId())) {
+            continue;
+        }
 
-            chosen.hold(copy);
-            hopHistory
-    .computeIfAbsent(
-        pkt.getPacketId(),
-        k -> new ArrayList<>()
-    )
-    .add(
-        new Hop(
-            src.getDeviceId(),
+        // IMPORTANT:
+        // Before the minimum stranger hops are completed,
+        // the bridge is NOT a valid candidate.
+        if (device.hasInternet() && strangerHops < MIN_STRANGER_HOPS) {
+            continue;
+        }
+
+        candidates.add(device);
+    }
+
+    /*
+     * We want exactly two stranger hops before bridge.
+     *
+     * If we still need stranger hops, only stranger nodes are allowed.
+     */
+    if (strangerHops < MAX_STRANGER_HOPS) {
+
+        candidates.removeIf(VirtualDevice::hasInternet);
+
+    } else {
+
+        // Minimum stranger hops completed.
+        // At this point bridge is the next destination.
+        candidates.removeIf(device -> !device.hasInternet());
+    }
+
+    if (candidates.isEmpty()) {
+
+        log.warn(
+                "No valid next hop for packet {} from {}",
+                packetId.substring(0, 8),
+                currentNodeId
+        );
+
+        return new GossipResult(0, snapshotMap());
+    }
+
+    // Pick one valid stranger randomly.
+    VirtualDevice chosen =
+            candidates.get(random.nextInt(candidates.size()));
+
+    // Create the forwarded packet.
+    MeshPacket copy = new MeshPacket();
+
+    copy.setPacketId(packet.getPacketId());
+    copy.setCiphertext(packet.getCiphertext());
+    copy.setCreatedAt(packet.getCreatedAt());
+    copy.setTtl(packet.getTtl() - 1);
+
+    chosen.hold(copy);
+
+    // Record hop history.
+    hopHistory
+            .computeIfAbsent(
+                    packetId,
+                    k -> new ArrayList<>()
+            )
+            .add(
+                    new Hop(
+                            currentNodeId,
+                            chosen.getDeviceId(),
+                            packetId
+                    )
+            );
+
+    // Record actual route.
+    route.add(chosen.getDeviceId());
+
+    log.info(
+            "MESH HOP: {} ---> {} | strangerHops={} | TTL={}",
+            currentNodeId,
             chosen.getDeviceId(),
-            pkt.getPacketId()
-        )
+            strangerHops,
+            copy.getTtl()
     );
-            packetRoutes
-                    .computeIfAbsent(pkt.getPacketId(),
-                            k -> new ArrayList<>())
-                    .add(chosen.getDeviceId());
 
-            transfers++;
+    return new GossipResult(
+            1,
+            snapshotMap()
+    );
+}
 
-            log.info("{}  --->  {}",
-                    src.getDeviceId(),
-                    chosen.getDeviceId());
+
+
+
+
+
+
+
+/**
+ * Counts only offline Stranger nodes in the route.
+ *
+ * Example:
+ *
+ * Alice
+ *   -> Stranger2
+ *   -> Stranger1
+ *
+ * returns 2.
+ */
+private int countStrangerHops(List<String> route) {
+
+    int count = 0;
+
+    for (String nodeId : route) {
+
+        if (nodeId.startsWith("phone-stranger")) {
+            count++;
         }
     }
 
-    log.info("Dynamic Gossip : {} transfers", transfers);
-
-    return new GossipResult(transfers, snapshotMap());
+    return count;
 }
+
     public Map<String, Integer> snapshotMap() {
         Map<String, Integer> m = new LinkedHashMap<>();
         for (VirtualDevice d : devices.values()) {
@@ -207,12 +321,35 @@ public class MeshSimulatorService {
         }
         return out;
     }
+    public synchronized void clearPacket(String packetId) {
+
+    if (packetId == null || packetId.isBlank()) {
+        return;
+    }
+
+    // Remove the packet from every virtual mesh device
+    devices.values().forEach(device ->
+            device.removePacket(packetId)
+    );
+
+    // Remove route information
+    packetRoutes.remove(packetId);
+
+    // Remove hop history
+    hopHistory.remove(packetId);
+
+    log.info(
+            "🧹 Completed packet {} removed from mesh state",
+            packetId.substring(0, Math.min(8, packetId.length()))
+    );
+}
 
     public void resetMesh() {
 
     devices.values().forEach(VirtualDevice::clear);
 
     packetRoutes.clear();
+    hopHistory.clear();
 }
     public Map<String, List<String>> getPacketRoutes() {
     return packetRoutes;

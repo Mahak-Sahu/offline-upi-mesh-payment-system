@@ -1,10 +1,10 @@
 package com.demo.upimesh.service;
 
-import com.demo.upimesh.model.MeshPacket;
-
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.demo.upimesh.model.MeshPacket;
 
 /**
  * A simulated phone in the mesh. Holds packets it has seen.
@@ -37,7 +37,9 @@ public class VirtualDevice {
     public boolean holds(String packetId) {
         return heldPackets.containsKey(packetId);
     }
-
+    public void removePacket(String packetId) {
+    heldPackets.remove(packetId);
+}
     public int packetCount() {
         return heldPackets.size();
     }
