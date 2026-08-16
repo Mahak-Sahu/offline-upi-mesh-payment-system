@@ -128,6 +128,15 @@ line(s2, s3);
 
 }
  */ 
+function removeLivePacket() {
+
+    const packet = document.getElementById("packet");
+
+    if (packet) {
+        packet.style.display = "none";
+    }
+
+}
 function movePacket(fromId, toId) {
 
     const packet = document.getElementById("packet");
@@ -573,24 +582,19 @@ async function flushBridges() {
          * Move the visual packet from Bridge
          * toward Internet only after upload.
          */
-        if (settlementCompleted) {
+        
+            if (settlementCompleted) {
 
-            movePacket(
-                "bridge-node",
-                "internet-node"
-            );
+                log(
+                    "🧹 Transaction completed. Mesh packet cleared."
+                );
 
-            log(
-                "🧹 Transaction completed. Mesh packet cleared."
-            );
+                // Remove the visual packet after settlement.
+                removeLivePacket();
 
-            /*
-             * Give backend a moment to finish updating
-             * the mesh state before refreshing UI.
-             */
-            await sleep(300);
+                await sleep(300);
 
-            await refresh();
+                await refresh();
 
             /*
              * Reset the gossip button for the next
