@@ -1,7 +1,22 @@
 
 function log(msg) {
     const el = document.getElementById('log');
-    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg + '\n' + el.textContent;
+
+    if (!el) return;
+
+    const wasAtBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+
+    el.textContent +=
+        '[' + new Date().toLocaleTimeString() + '] ' +
+        msg +
+        '\n';
+
+    // Automatically follow new logs only if
+    // the user was already at the bottom.
+    if (wasAtBottom) {
+        el.scrollTop = el.scrollHeight;
+    }
 }
 /*function drawConnections() {
 
@@ -649,11 +664,39 @@ async function flushBridges() {
 }
 
 async function resetMesh() {
-    await fetch('/api/demo/reset', {method: 'POST'});
-    log('🗑 mesh + idempotency cache cleared');
-    refresh();
-}
 
+    try {
+        const response = await fetch('/api/demo/reset', {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `HTTP ${response.status}`);
+        }
+
+        // Clear Activity Log
+        const logElement = document.getElementById('log');
+
+        if (logElement) {
+            logElement.textContent = '';
+        }
+
+        // Remove visible mesh packet
+        removeLivePacket();
+
+        // Refresh accounts, transactions and mesh state
+        await refresh();
+
+        log('🔄 Demo reset successfully. Ready for a new transaction.');
+
+    } catch (error) {
+
+        console.error('Demo reset failed:', error);
+
+        log('❌ Demo reset failed: ' + error.message);
+    }
+}
 refresh();
 //setTimeout(drawConnections,300);
 //window.addEventListener("resize", drawConnections);

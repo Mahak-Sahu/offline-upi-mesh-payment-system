@@ -22,98 +22,221 @@ import com.demo.upimesh.model.Transaction;
  *      - If already claimed: this is a duplicate. Drop it.
  *   3. Decrypt the ciphertext with the server's private key.
  *      - If decryption fails: tampered or junk. Reject.
- *   4. Check freshness — reject if signedAt is too old (replay protection).
+ *   4. Check freshness — reject if signedAt is too old.
  *   5. Hand off to SettlementService for the actual debit/credit.
+ *
+ * The browser session is passed through so that settlement happens
+ * against the correct isolated demo accounts.
  */
 @Service
 public class BridgeIngestionService {
 
-    private static final Logger log = LoggerFactory.getLogger(BridgeIngestionService.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(BridgeIngestionService.class);
 
-    @Autowired private HybridCryptoService crypto;
-    @Autowired private IdempotencyService idempotency;
-    @Autowired private SettlementService settlement;
+    @Autowired
+    private HybridCryptoService crypto;
+
+    @Autowired
+    private IdempotencyService idempotency;
+
+    @Autowired
+    private SettlementService settlement;
 
     @Value("${upi.mesh.packet-max-age-seconds:86400}")
     private long maxAgeSeconds;
 
-    public IngestResult ingest(MeshPacket packet, String bridgeNodeId, int hopCount) {
-        try {
-            String packetHash = crypto.hashCiphertext(packet.getCiphertext());
+    public IngestResult ingest(
+            MeshPacket packet,
+            String bridgeNodeId,
+            int hopCount,
+            String sessionId) {
 
-            // ---- Idempotency gate ----
+        try {
+
+            if (sessionId == null || sessionId.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Session ID is required"
+                );
+            }
+
+            String packetHash =
+                    crypto.hashCiphertext(
+                            packet.getCiphertext()
+                    );
+
+            // --------------------------------------------------
+            // Idempotency gate
+            // --------------------------------------------------
+
             if (!idempotency.claim(packetHash)) {
-                log.info("DUPLICATE packet {} from bridge {} — dropped",
-                        packetHash.substring(0, 12) + "...", bridgeNodeId);
+
+                log.info(
+                        "DUPLICATE packet {} from bridge {} — dropped",
+                        packetHash.substring(0, 12) + "...",
+                        bridgeNodeId
+                );
+
                 return IngestResult.duplicate(packetHash);
             }
 
-            // ---- Decrypt ----
+            // --------------------------------------------------
+            // Decrypt
+            // --------------------------------------------------
+
             PaymentInstruction instruction;
+
             try {
-                instruction = crypto.decrypt(packet.getCiphertext());
+
+                instruction =
+                        crypto.decrypt(
+                                packet.getCiphertext()
+                        );
+
             } catch (Exception e) {
-                log.warn("Decryption failed for packet {}: {}",
-                        packetHash.substring(0, 12) + "...", e.getMessage());
-                return IngestResult.invalid(packetHash, "decryption_failed");
+
+                log.warn(
+                        "Decryption failed for packet {}: {}",
+                        packetHash.substring(0, 12) + "...",
+                        e.getMessage()
+                );
+
+                return IngestResult.invalid(
+                        packetHash,
+                        "decryption_failed"
+                );
             }
 
-            // ---- Freshness check (replay protection) ----
-            long ageSeconds = (Instant.now().toEpochMilli() - instruction.getSignedAt()) / 1000;
+            // --------------------------------------------------
+            // Freshness check
+            // --------------------------------------------------
+
+            long ageSeconds =
+                    (
+                        Instant.now().toEpochMilli()
+                        - instruction.getSignedAt()
+                    ) / 1000;
+
             if (ageSeconds > maxAgeSeconds) {
-                log.warn("Packet {} too old ({}s), rejected",
-                        packetHash.substring(0, 12) + "...", ageSeconds);
-                return IngestResult.invalid(packetHash, "stale_packet");
+
+                log.warn(
+                        "Packet {} too old ({}s), rejected",
+                        packetHash.substring(0, 12) + "...",
+                        ageSeconds
+                );
+
+                return IngestResult.invalid(
+                        packetHash,
+                        "stale_packet"
+                );
             }
-            if (ageSeconds < -300) { // small clock-skew tolerance
-                return IngestResult.invalid(packetHash, "future_dated");
+
+            if (ageSeconds < -300) {
+
+                return IngestResult.invalid(
+                        packetHash,
+                        "future_dated"
+                );
             }
 
-            // ---- Settle ----
-            Transaction tx = settlement.settle(instruction, packetHash, bridgeNodeId, hopCount);
-            return IngestResult.settled(packetHash, tx);
+            // --------------------------------------------------
+            // Settlement
+            // --------------------------------------------------
 
-        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+            Transaction tx =
+                    settlement.settle(
+                            instruction,
+                            packetHash,
+                            bridgeNodeId,
+                            hopCount,
+                            sessionId
+                    );
 
-    log.warn("Optimistic locking conflict detected. Client should retry.");
+            return IngestResult.settled(
+                    packetHash,
+                    tx
+            );
 
-    return IngestResult.retryRequired(
-            "?",
-            "Another transaction updated this account. Please retry."
-    );
+        } catch (
+                org.springframework.orm
+                        .ObjectOptimisticLockingFailureException e) {
 
-}
-catch (Exception e) {
+            log.warn(
+                    "Optimistic locking conflict detected. " +
+                    "Client should retry."
+            );
 
-    log.error("Ingestion error: {}", e.getMessage(), e);
+            return IngestResult.retryRequired(
+                    "?",
+                    "Another transaction updated this account. Please retry."
+            );
 
-    return IngestResult.invalid(
-            "?",
-            "internal_error: " + e.getMessage()
-    );
+        } catch (Exception e) {
 
-}
+            log.error(
+                    "Ingestion error: {}",
+                    e.getMessage(),
+                    e
+            );
+
+            return IngestResult.invalid(
+                    "?",
+                    "internal_error: " + e.getMessage()
+            );
+        }
     }
 
-    public record IngestResult(String outcome, String packetHash, String reason, Long transactionId) {
-        public static IngestResult settled(String hash, Transaction tx) {
-            return new IngestResult("SETTLED", hash, null, tx.getId());
-        }
-        public static IngestResult duplicate(String hash) {
-            return new IngestResult("DUPLICATE_DROPPED", hash, null, null);
-        }
-        public static IngestResult invalid(String hash, String reason) {
-            return new IngestResult("INVALID", hash, reason, null);
-        }
-        public static IngestResult retryRequired(String hash, String reason) {
+    public record IngestResult(
+            String outcome,
+            String packetHash,
+            String reason,
+            Long transactionId) {
 
-    return new IngestResult(
-            "RETRY_REQUIRED",
-            hash,
-            reason,
-            null
-    );
+        public static IngestResult settled(
+                String hash,
+                Transaction tx) {
 
-}
+            return new IngestResult(
+                    "SETTLED",
+                    hash,
+                    null,
+                    tx.getId()
+            );
+        }
+
+        public static IngestResult duplicate(
+                String hash) {
+
+            return new IngestResult(
+                    "DUPLICATE_DROPPED",
+                    hash,
+                    null,
+                    null
+            );
+        }
+
+        public static IngestResult invalid(
+                String hash,
+                String reason) {
+
+            return new IngestResult(
+                    "INVALID",
+                    hash,
+                    reason,
+                    null
+            );
+        }
+
+        public static IngestResult retryRequired(
+                String hash,
+                String reason) {
+
+            return new IngestResult(
+                    "RETRY_REQUIRED",
+                    hash,
+                    reason,
+                    null
+            );
+        }
     }
 }
