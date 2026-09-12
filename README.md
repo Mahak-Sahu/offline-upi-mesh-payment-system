@@ -5,6 +5,13 @@
 
 **Repository:** Mahak-Sahu/offline-upi-mesh-payment-system
 
+## 🚀 Live Demo
+
+👉 **[Open Live Demo](https://offline-upi-mesh-payment-system-71ga.onrender.com)**
+
+> Hosted on Render Free Tier with Aiven MySQL.
+> The service may take a few seconds to wake up after inactivity.
+
 ---
 
 ## 📌 Overview
