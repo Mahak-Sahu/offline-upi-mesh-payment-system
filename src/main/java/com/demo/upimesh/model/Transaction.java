@@ -1,9 +1,17 @@
 package com.demo.upimesh.model;
 
-import jakarta.persistence.*;
-
 import java.math.BigDecimal;
 import java.time.Instant;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 
 /**
  * Permanent record of every settled transaction. Once written, never modified.
@@ -46,6 +54,8 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status;
+    @Column(name = "session_id", nullable = false)
+private String sessionId;
 
     public enum Status { SETTLED, REJECTED }
 
@@ -80,4 +90,11 @@ public class Transaction {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
 }

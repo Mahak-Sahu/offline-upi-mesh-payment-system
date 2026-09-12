@@ -67,12 +67,16 @@
 
         <div style="margin-top: 16px">
             <span class="step-num">2</span><strong>Gossip</strong> — packets hop device-to-device
-            <button class="secondary" onclick="gossip()">🔄 Run Gossip Round</button>
+            <button id="gossipButton" class="secondary" onclick="gossip()" disabled>🚀 Start Gossip</button>
         </div>
 
         <div style="margin-top: 16px">
             <span class="step-num">3</span><strong>Bridge node walks outside, hits 4G</strong>
-            <button class="secondary" onclick="flushBridges()">📡 Bridges Upload to Backend</button>
+            <button id="uploadButton"
+                class="secondary"
+                onclick="flushBridges()"
+                disabled>
+                📡 Upload to Backend</button>
             <span class="small">(parallel — exercises idempotency)</span>
         </div>
 

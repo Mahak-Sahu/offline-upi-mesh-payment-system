@@ -1,7 +1,22 @@
 
 function log(msg) {
     const el = document.getElementById('log');
-    el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg + '\n' + el.textContent;
+
+    if (!el) return;
+
+    const wasAtBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+
+    el.textContent +=
+        '[' + new Date().toLocaleTimeString() + '] ' +
+        msg +
+        '\n';
+
+    // Automatically follow new logs only if
+    // the user was already at the bottom.
+    if (wasAtBottom) {
+        el.scrollTop = el.scrollHeight;
+    }
 }
 /*function drawConnections() {
 
@@ -128,6 +143,15 @@ line(s2, s3);
 
 }
  */ 
+function removeLivePacket() {
+
+    const packet = document.getElementById("packet");
+
+    if (packet) {
+        packet.style.display = "none";
+    }
+
+}
 function movePacket(fromId, toId) {
 
     const packet = document.getElementById("packet");
@@ -300,25 +324,139 @@ packet.style.top  = (to.y - 9) + "px";
 }
 async function animateRoute(packetId) {
 
-    const hops = window.meshState.routes[packetId];
+    const route =
+        window.meshState?.routes?.[packetId];
 
-    if (!hops || hops.length === 0) {
+    if (!route || route.length < 2) {
         return;
     }
 
-    for (const hop of hops) {
+    /*
+     * Backend gives the actual route:
+     *
+     * phone-alice
+     * phone-stranger2
+     * phone-stranger1
+     * phone-bridge
+     *
+     * Frontend simply visualizes that route.
+     */
 
-        await animateHop(
-            hop.fromNode,
-            hop.toNode
+    for (let i = 0; i < route.length - 1; i++) {
+
+        const fromDevice = route[i];
+        const toDevice = route[i + 1];
+
+        log(
+            `📦 LIVE MESH: ${fromDevice} → ${toDevice}`
         );
 
+        await animateHop(
+            fromDevice,
+            toDevice
+        );
     }
-
 }
 
+let paymentState = "IDLE";
+
+function setPaymentState(state) {
+
+    paymentState = state;
+
+    const injectButton =
+        document.getElementById("sendButton");
+
+    const gossipButton =
+        document.getElementById("gossipButton");
+
+    const uploadButton =
+        document.getElementById("uploadButton");
+
+    switch (state) {
+
+        case "IDLE":
+
+            if (injectButton) {
+                injectButton.disabled = false;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "🚀 Start Gossip";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+
+
+        case "INJECTED":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = false;
+                gossipButton.textContent = "🚀 Start Gossip";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+            }
+
+            break;
+
+
+        case "GOSSIPING":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "⏳ Gossiping...";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+
+
+        case "READY_FOR_UPLOAD":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "✅ Gossip Complete";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = false;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+    }
+}
 
 async function sendPacket() {
+        if (paymentState !== "IDLE") {
+        return;
+    }
+
+    setPaymentState("INJECTED");
     const body = {
         senderVpa: document.getElementById('senderVpa').value,
         receiverVpa: document.getElementById('receiverVpa').value,
@@ -333,47 +471,277 @@ async function sendPacket() {
     }).then(r => r.json());
     log(`📤 Packet ${r.packetId.substring(0,8)} encrypted & injected at ${r.injectedAt} (TTL ${r.ttl})`);
     log(`   ciphertext (truncated): ${r.ciphertextPreview}`);
-    movePacket("alice-node","stranger1-node");
-    refresh();
+
+
+await refresh();
 }
 
+
+let gossipRunning = false;
+
+const GOSSIP_DELAY = 2000; // 2 seconds between mesh hops
+
 async function gossip() {
-    const r = await fetch('/api/mesh/gossip', {method: 'POST'}).then(r => r.json());
-    log(`🔄 Gossip: ${r.transfers} transfer(s) — ${JSON.stringify(r.deviceCounts)}`);
-    movePacket("stranger1-node","stranger2-node");
 
-setTimeout(()=>{
+    // Prevent multiple gossip processes from running together
+    if (gossipRunning) {
+        return;
+    }
 
-   movePacket("stranger2-node","bridge-node");
+    gossipRunning = true;
+    setPaymentState("GOSSIPING");
 
-},900);
-    refresh();
+    const button = document.getElementById("gossipButton");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "⏳ Gossiping...";
+    }
+
+    log("🚀 Automatic mesh gossip started...");
+
+    try {
+
+        while (true) {
+
+            // Perform exactly ONE mesh hop
+            const response = await fetch(
+                '/api/mesh/gossip',
+                {
+                    method: 'POST'
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Gossip request failed: ${response.status}`
+                );
+            }
+
+            const result = await response.json();
+
+            log(
+                `🔄 Gossip hop: ${result.transfers} transfer(s) — ${JSON.stringify(result.deviceCounts)}`
+            );
+            if (
+                result.transfers === 1 &&
+                result.from &&
+                result.to
+            ) {
+
+                log(
+                    `📦 LIVE MESH: ${result.from} → ${result.to} | TTL=${result.ttl}`
+                );
+
+                await animateHop(
+                    result.from,
+                    result.to
+                );
+            }
+
+            // Update current mesh state
+            await refresh();
+
+            /*
+             * If backend could not perform another hop,
+             * gossip is finished.
+             */
+            if (result.transfers === 0) {
+
+                log("🏁 No more mesh hops available.");
+
+                break;
+            }
+
+            if (result.reachedBridge) {
+
+                log("🌐 Packet reached Bridge Phone!");
+
+                const uploadButton =
+                    document.getElementById("uploadButton");
+
+                setPaymentState("READY_FOR_UPLOAD");
+
+                break;
+            }
+            
+            /*
+             * Wait before the next automatic gossip round.
+             */
+            await sleep(GOSSIP_DELAY);
+        }
+
+    } catch (error) {
+
+        console.error("Automatic gossip error:", error);
+
+        log(`❌ Gossip failed: ${error.message}`);
+
+    } finally {
+
+    gossipRunning = false;
+
+    await refresh();
+}
+}
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function flushBridges() {
-    const r = await fetch('/api/mesh/flush', {method: 'POST'}).then(r => r.json());
-    log(`📡 ${r.uploadsAttempted} bridge upload(s):`);
-    r.results.forEach(res => {
-        if(res.outcome==="RETRY_REQUIRED"){
 
-    log("⚠ Another transaction modified this account.");
+    const uploadButton =
+        document.getElementById("uploadButton");
 
-    log("🔁 Please retry this payment.");
+    if (uploadButton) {
+        uploadButton.disabled = true;
+        uploadButton.textContent = "⏳ Uploading...";
+    }
 
-}
-        log(`   ${res.bridgeNode} packet ${res.packetId} → ${res.outcome}` +
-            (res.reason ? ` (${res.reason})` : ''));
-    });
-    movePacket("bridge-node","internet-node");
-    refresh();
+    log("📡 Uploading bridge packet to backend...");
+
+    try {
+
+        const response = await fetch(
+            '/api/mesh/flush',
+            {
+                method: 'POST'
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `Backend upload failed: ${response.status}`
+            );
+        }
+
+        const result = await response.json();
+
+        log(
+            `📡 ${result.uploadsAttempted} bridge upload(s)`
+        );
+
+        let settlementCompleted = false;
+
+        result.results.forEach(res => {
+
+            log(
+                `   ${res.bridgeNode} packet ${res.packetId} → ${res.outcome}` +
+                (
+                    res.reason
+                        ? ` (${res.reason})`
+                        : ''
+                )
+            );
+
+            if (res.outcome === "SETTLED") {
+                settlementCompleted = true;
+            }
+
+            if (res.outcome === "DUPLICATE_DROPPED") {
+                settlementCompleted = true;
+            }
+
+            if (res.outcome === "INVALID") {
+                settlementCompleted = true;
+            }
+
+            if (res.outcome === "RETRY_REQUIRED") {
+
+                log(
+                    "⚠ Another transaction modified this account."
+                );
+
+                log(
+                    "🔁 Please retry this payment."
+                );
+            }
+        });
+
+        /*
+         * Move the visual packet from Bridge
+         * toward Internet only after upload.
+         */
+        
+            if (settlementCompleted) {
+
+                log(
+                    "🧹 Transaction completed. Mesh packet cleared."
+                );
+
+                // Remove the visual packet after settlement.
+                removeLivePacket();
+
+                await sleep(300);
+
+                await refresh();
+
+            /*
+             * Reset the gossip button for the next
+             * transaction.
+             */
+            setPaymentState("IDLE");
+            log(
+                "✅ Ready for the next transaction."
+            );
+        }
+
+    } catch (error) {
+
+        console.error(error);
+
+        log(
+            `❌ Upload failed: ${error.message}`
+        );
+
+        if (uploadButton) {
+
+            uploadButton.disabled = false;
+
+            uploadButton.textContent =
+                "📡 Upload to Backend";
+        }
+    }
+
+    await refresh();
 }
 
 async function resetMesh() {
-    await fetch('/api/demo/reset', {method: 'POST'});
-    log('🗑 mesh + idempotency cache cleared');
-    refresh();
-}
 
+    try {
+        const response = await fetch('/api/demo/reset', {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `HTTP ${response.status}`);
+        }
+
+        // Clear Activity Log
+        const logElement = document.getElementById('log');
+
+        if (logElement) {
+            logElement.textContent = '';
+        }
+
+        // Remove visible mesh packet
+        removeLivePacket();
+        setPaymentState("IDLE");
+        // Refresh accounts, transactions and mesh state
+        await refresh();
+
+        log('🔄 Demo reset successfully. Ready for a new transaction.');
+
+    } catch (error) {
+
+        console.error('Demo reset failed:', error);
+
+        log('❌ Demo reset failed: ' + error.message);
+    }
+}
 refresh();
 //setTimeout(drawConnections,300);
 //window.addEventListener("resize", drawConnections);
