@@ -1,567 +1,161 @@
+````markdown
 # 🔐 Offline UPI Mesh Payment System
 
-> **A secure store-and-forward payment architecture for connectivity-constrained environments.**
+> A Spring Boot prototype that simulates **offline payment creation, encrypted store-and-forward mesh routing, bridge-based delivery, duplicate protection, and transactional settlement**.
 
-An experimental Spring Boot system that demonstrates how a payment instruction can be created while the sender is offline, encrypted end-to-end, propagated through a device-to-device mesh, carried by an internet-connected bridge device, and finally processed by a backend with **idempotent settlement, replay protection, authenticated encryption, and transactional ledger updates**.
-
----
-
-## 🚀 Core Idea
-
-Traditional digital payment systems assume that the sender can communicate directly with a payment backend.
-
-This project explores the opposite scenario:
-
-**What if the sender has no internet connection at all?**
-
-Instead of requiring a direct connection to the backend, the payment is converted into an encrypted packet that can travel through nearby devices until it reaches a device that has internet connectivity.
-
-```text
-                         OFFLINE ENVIRONMENT
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │  📱 Alice Phone │
-                    │  Create Payment │
-                    └────────┬────────┘
-                             │
-                       🔐 Encrypt
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ 📱 Mesh Device  │
-                    │  Store Packet   │
-                    └────────┬────────┘
-                             │
-                       Mesh Gossip
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ 📱 Bridge Phone │
-                    │   + 4G/Internet │
-                    └────────┬────────┘
-                             │
-                           HTTPS
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ Spring Boot API │
-                    └────────┬────────┘
-                             │
-                    Security Validation
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   Settlement    │
-                    │     + MySQL     │
-                    └─────────────────┘
-```
-
-### Payment Lifecycle
-
-```text
-Payment Creation
-       ↓
-Encryption
-       ↓
-Offline Storage
-       ↓
-Mesh Propagation
-       ↓
-Bridge Connectivity
-       ↓
-Backend Ingestion
-       ↓
-Security Validation
-       ↓
-Duplicate Protection
-       ↓
-Settlement
-       ↓
-Transaction Ledger
-```
+**Repository:** Mahak-Sahu/offline-upi-mesh-payment-system
 
 ---
 
-## ✨ What Makes This Project Different
+## 📌 Overview
 
-The project focuses on the problem of performing a payment workflow when the sender temporarily has **no direct internet connectivity**.
+This project explores a simple question:
 
-The core architectural challenge is:
+> **How can a payment instruction survive temporary loss of internet connectivity and later reach a backend safely for settlement?**
 
-> **How can an encrypted payment survive a period of connectivity loss and still reach the backend safely and settle only once when connectivity returns?**
+The project simulates an offline payment environment using virtual devices.
 
-The system separates the payment into independent stages:
+A sender creates a payment while offline. The payment is encrypted into a `MeshPacket`, forwarded through simulated device-to-device mesh hops, reaches an internet-connected bridge device, and is then uploaded to the Spring Boot backend.
 
-```text
-📱 Sender
-   │
-   │ Create PaymentInstruction
-   ▼
-🔐 Encryption
-   │
-   │ AES-256-GCM
-   │ RSA-2048 OAEP
-   ▼
-📦 MeshPacket
-   │
-   │ Store-and-Forward
-   ▼
-📱 Device → 📱 Device → 📱 Device
-   │
-   │ Mesh Gossip
-   ▼
-🌐 Bridge Device
-   │
-   │ Internet Available
-   ▼
-☁️ Spring Boot Backend
-   │
-   ├── Idempotency Check
-   ├── Decryption
-   ├── Freshness Validation
-   ├── AES-GCM Authentication
-   └── Settlement
-   │
-   ▼
-🗄️ MySQL Ledger
-```
+The backend:
 
-The design combines concepts from:
+1. hashes the encrypted packet,
+2. checks idempotency,
+3. decrypts the payment,
+4. validates freshness,
+5. performs transactional settlement,
+6. records the transaction in MySQL.
 
-- Offline-first systems
-- Store-and-forward networking
-- Device-to-device mesh communication
-- Hybrid cryptography
-- Idempotent distributed processing
-- Replay protection
-- Transactional database settlement
+### Important Scope
+
+This is **not a real UPI implementation**.
+
+It does not connect to:
+
+- NPCI
+- real banks
+- real UPI infrastructure
+- real Bluetooth/BLE hardware
+- real customer accounts
+
+The mesh and phones are simulated in software so the complete architecture can be demonstrated locally.
 
 ---
 
-## 🔐 Security Model
+# 🚀 End-to-End Architecture
 
-The payment information is encrypted before entering the mesh.
+```text
+                 OFFLINE SIDE
+                      │
+                      ▼
+             ┌─────────────────┐
+             │  Sender Device  │
+             │ Create Payment  │
+             └────────┬────────┘
+                      │
+                      ▼
+             ┌─────────────────┐
+             │ Hybrid Encrypt  │
+             │ RSA + AES-GCM   │
+             └────────┬────────┘
+                      │
+                      ▼
+             ┌─────────────────┐
+             │   MeshPacket    │
+             │  Store/Forward  │
+             └────────┬────────┘
+                      │
+                One hop at a time
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+   Stranger Device          Stranger Device
+          │                       │
+          └───────────┬───────────┘
+                      ▼
+             ┌─────────────────┐
+             │  Bridge Device  │
+             │   Has Internet  │
+             └────────┬────────┘
+                      │
+                      ▼
+             ┌─────────────────┐
+             │ Spring Boot API │
+             └────────┬────────┘
+                      │
+              Hash / Idempotency
+                      │
+                   Decrypt
+                      │
+             Freshness Validation
+                      │
+                 Settlement
+                      │
+                      ▼
+                   MySQL
+````
 
-Intermediate devices carry the encrypted packet but do not need access to the plaintext payment instruction.
+---
+
+# ✨ Implemented Features
+
+## 🔐 1. Hybrid Encryption
+
+Every payment instruction is encrypted before entering the simulated mesh.
+
+Implemented:
+
+* AES-256-GCM for payment payload encryption
+* RSA-2048 OAEP with SHA-256 for AES-key encryption
+* Fresh AES key for every packet
+* Random 12-byte GCM IV
+* AES-GCM authentication tag
+
+The encrypted packet contains:
+
+```text
+[ RSA-encrypted AES key ]
+          +
+[ GCM IV ]
+          +
+[ AES-GCM ciphertext + authentication tag ]
+```
+
+Flow:
 
 ```text
 PaymentInstruction
-       │
-       ▼
-JSON Serialization
-       │
-       ▼
-Generate AES-256 Session Key
-       │
-       ▼
-AES-256-GCM Encryption
-       │
-       ▼
-Encrypted Payment Payload
-       │
-       │
-       └──────────────┐
-                      │
-              AES Session Key
-                      │
-                      ▼
-              RSA-2048 OAEP
-                      │
-                      ▼
-             Encrypted AES Key
-                      │
-                      ▼
-                MeshPacket
+      ↓
+JSON serialization
+      ↓
+Random AES-256 key
+      ↓
+AES-256-GCM encryption
+      ↓
+RSA-OAEP encrypts AES key
+      ↓
+MeshPacket
 ```
 
-### 🔑 Hybrid Encryption
-
-The system uses a hybrid encryption design:
-
-- **AES-256-GCM** encrypts the actual payment payload.
-- **RSA-2048 OAEP** encrypts the temporary AES session key.
-- **AES-GCM authentication** provides ciphertext integrity.
-- A fresh AES key is generated for every payment packet.
-
-The resulting encrypted packet contains:
-
-```text
-[ RSA-encrypted AES Key ]
-          +
-[ GCM Initialization Vector ]
-          +
-[ AES-GCM Ciphertext + Authentication Tag ]
-```
-
-This allows the payment payload to remain confidential while travelling through the mesh.
+Intermediate mesh devices only carry the encrypted packet and do not receive the plaintext payment instruction.
 
 ---
 
-## 📦 Payment Packet Lifecycle
+# 📦 2. MeshPacket
 
-A payment moves through the system as an encrypted packet rather than as a direct online transaction.
+The payment travels through the simulated network as a `MeshPacket`.
 
-```text
-┌─────────────────┐
-│ 1. CREATE       │
-│ Payment Intent  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 2. ENCRYPT      │
-│ AES-256-GCM     │
-│ + RSA-OAEP      │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 3. INJECT       │
-│ Into Sender     │
-│ Device          │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 4. GOSSIP       │
-│ Device-to-Device│
-│ Propagation     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 5. BRIDGE       │
-│ Device Gets     │
-│ Internet        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 6. INGEST       │
-│ Backend Receives│
-│ Packet          │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 7. VALIDATE     │
-│ Hash + Decrypt  │
-│ + Freshness     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 8. SETTLE       │
-│ Debit + Credit  │
-│ Transactionally │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 9. RECORD       │
-│ Permanent       │
-│ Transaction     │
-└─────────────────┘
-```
-
-### Packet Structure
+Conceptually:
 
 ```text
-                    MeshPacket
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-        ▼               ▼               ▼
-    packetId           TTL          createdAt
-        │
-        │
-        └───────────────┐
-                        ▼
-                   ciphertext
-                        │
-                        ▼
-              Encrypted Payment Data
+MeshPacket
+├── packetId
+├── ttl
+├── createdAt
+└── ciphertext
 ```
 
-The packet can remain stored on intermediate devices while the network is unavailable. Once a bridge device obtains internet connectivity, the packet can be delivered to the backend for validation and settlement.
-
----
-
-## 🌐 Offline Mesh Propagation
-
-The mesh layer follows a **store-and-forward** approach.
-
-A device does not need internet connectivity to participate in packet delivery. It can temporarily store an encrypted payment packet and forward it when another suitable device becomes available.
-
-```text
-                         ☁️ Backend
-                             ▲
-                             │
-                          HTTPS
-                             │
-                             │
-                    ┌────────┴────────┐
-                    │  🌐 Bridge Phone │
-                    │     + 4G         │
-                    └────────▲────────┘
-                             │
-                          Gossip
-                             │
-                    ┌────────┴────────┐
-                    │ 📱 Stranger 3   │
-                    │   Offline       │
-                    └────────▲────────┘
-                             │
-                          Gossip
-                             │
-                    ┌────────┴────────┐
-                    │ 📱 Stranger 2   │
-                    │   Offline       │
-                    └────────▲────────┘
-                             │
-                          Gossip
-                             │
-                    ┌────────┴────────┐
-                    │ 📱 Stranger 1   │
-                    │   Offline       │
-                    └────────▲────────┘
-                             │
-                          Gossip
-                             │
-                    ┌────────┴────────┐
-                    │   📱 Alice      │
-                    │  No Internet    │
-                    └─────────────────┘
-```
-
-### Store-and-Forward Model
-
-```text
-No Internet
-     │
-     ▼
-Create encrypted packet
-     │
-     ▼
-Store locally
-     │
-     ▼
-Discover another device
-     │
-     ▼
-Forward packet
-     │
-     ▼
-Repeat until bridge is reached
-     │
-     ▼
-Bridge obtains connectivity
-     │
-     ▼
-Upload packet to backend
-```
-
-### TTL-Based Propagation
-
-Every packet contains a **TTL (hop limit)** value representing the maximum number of remaining mesh forwarding hops.
-
-```text
-Initial TTL = 5
-
-Alice
-  │
-  │ TTL 5 → 4
-  ▼
-Stranger 1
-  │
-  │ TTL 4 → 3
-  ▼
-Stranger 2
-  │
-  │ TTL 3 → 2
-  ▼
-Stranger 3
-  │
-  │ TTL 2 → 1
-  ▼
-Bridge
-```
-
-A packet with `TTL = 0` is not forwarded further. This prevents uncontrolled propagation through the mesh.
-
----
-
-## 🌐 Bridge Node & Backend Ingestion
-
-A bridge node is a mesh device that currently has internet connectivity.
-
-The bridge does not need to decrypt or understand the payment. Its role is to deliver the encrypted packet to the backend.
-
-```text
-📦 Encrypted MeshPacket
-          │
-          ▼
-   🌐 Bridge Node
-          │
-          │ Internet Available
-          ▼
- POST /api/bridge/ingest
-          │
-          ▼
- ┌──────────────────────┐
- │  Backend Processing  │
- └──────────┬───────────┘
-            │
-            ▼
-      Security Pipeline
-            │
-            ▼
-        Settlement
-```
-
-### Backend Ingestion Pipeline
-
-```text
-Bridge Upload
-     │
-     ▼
-SHA-256 Ciphertext Hash
-     │
-     ▼
-Idempotency Check
-     │
-     ▼
-Decrypt Ciphertext
-     │
-     ▼
-Freshness Validation
-     │
-     ▼
-Settlement Service
-     │
-     ▼
-MySQL Transaction
-```
-
-The bridge communicates with the backend through:
-
-```text
-POST /api/bridge/ingest
-```
-
-The request can include bridge and hop information so the backend can record how the packet reached the internet-connected node.
-
-### Bridge Upload Result
-
-A successfully processed packet can result in:
-
-```text
-SETTLED
-```
-
-A packet that has already been processed results in:
-
-```text
-DUPLICATE_DROPPED
-```
-
-Invalid or stale packets are rejected instead of being settled.
-
----
-
-## ♻️ Exactly-Once Settlement
-
-Offline delivery creates a distributed-systems problem: the same encrypted payment packet may reach the backend through multiple bridge devices.
-
-For example:
-
-```text
-                         ┌── Bridge A ──┐
-                         │              │
-Alice → Mesh ────────────┼── Bridge B ──┼──→ Backend
-                         │              │
-                         └── Bridge C ──┘
-```
-
-All three bridges may attempt to upload the same packet.
-
-The backend prevents multiple settlements using the encrypted packet's **SHA-256 hash** as the idempotency key.
-
-```text
-Encrypted Packet
-       │
-       ▼
-SHA-256 Ciphertext Hash
-       │
-       ▼
-Idempotency Check
-       │
-       ├──────────────► Already seen
-       │                      │
-       │                      ▼
-       │               DUPLICATE_DROPPED
-       │
-       ▼
-First delivery
-       │
-       ▼
-Decrypt + Validate
-       │
-       ▼
-Settlement
-       │
-       ▼
-SETTLED
-```
-
-### Duplicate Delivery Scenario
-
-```text
-Bridge A ──┐
-           │
-Bridge B ──┼──► Same Packet Hash ──► Backend
-           │
-Bridge C ──┘
-
-First request  → SETTLED
-Second request → DUPLICATE_DROPPED
-Third request  → DUPLICATE_DROPPED
-```
-
-This ensures that a single payment packet cannot cause the same account transfer to be applied multiple times through repeated bridge delivery.
-
-### Defense in Depth
-
-The system uses multiple layers of protection:
-
-```text
-Idempotency Cache
-       ↓
-SHA-256 Packet Hash
-       ↓
-Database Unique Constraint
-       ↓
-Optimistic Account Locking
-       ↓
-Transactional Settlement
-```
-
-The result is an **exactly-once settlement behavior for duplicate packet deliveries within the system's idempotency window**.
-
----
-
-## 🛡️ Replay Protection & Tamper Detection
-
-Offline payments introduce two important security concerns:
-
-1. An old payment packet could be replayed later.
-2. An encrypted packet could be modified while travelling through the mesh.
-
-The system addresses both concerns before settlement.
-### ⏱️ Replay Protection
-
-Every `PaymentInstruction` contains a unique nonce and a timestamp:
+The encrypted payment instruction contains fields such as:
 
 ```text
 PaymentInstruction
@@ -572,211 +166,425 @@ PaymentInstruction
 ├── nonce
 └── signedAt
 ```
-The `signedAt` field records when the payment instruction was created. The backend uses this timestamp to enforce a freshness window.
-```text
-Packet Received
-      │
-      ▼
-Read signedAt
-      │
-      ▼
-Freshness Check
-      │
-   ┌──┴──┐
-   │     │
- VALID  STALE
-   │     │
-   ▼     ▼
-Continue Reject
-```
-The backend rejects packets that are older than the configured freshness window.
 
-Packets with timestamps significantly ahead of the server clock are also rejected.
-
-The `nonce` provides a unique identifier for each payment intent, so two separate payment creations can be distinguished even when the sender, receiver, and amount are the same.
-
-Together with the ciphertext-based idempotency mechanism, the freshness check helps protect the system against repeated delivery of old payment packets.
----
-
-### 🔒 Tamper Detection
-
-The payment payload is protected using AES-256-GCM authenticated encryption.
-
-```text
-PaymentInstruction
-       │
-       ▼
-AES-256-GCM
-       │
-       ▼
-Ciphertext + Authentication Tag
-       │
-       ▼
-Mesh Network
-       │
-       ▼
-Backend Decryption
-       │
-   ┌───┴────┐
-   │        │
- VALID    INVALID
-   │        │
-   ▼        ▼
-Continue   Reject
-```
-
-If the encrypted payload is modified, AES-GCM authentication fails during decryption.
-
-The backend therefore rejects the modified packet instead of processing it.
-
-### 🔐 Security Boundary
-
-Intermediate mesh devices can:
-
-```text
-✓ Store the packet
-✓ Forward the packet
-✓ Track packet metadata
-✓ Decrease TTL
-```
-
-But they cannot:
-
-```text
-✗ Read the encrypted payment payload
-✗ Decrypt the payment
-✗ Modify the payment without detection
-```
-
----
-## 💾 Transactional Settlement & Ledger
-
-Once a packet passes all security and validation checks, the payment is handed to the settlement layer.
-
-The settlement operation is performed inside a database transaction so the sender debit and receiver credit are treated as one atomic operation.
-
-```text
-Validated Payment
-       │
-       ▼
-┌──────────────────────┐
-│ Load Sender Account  │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│ Load Receiver Account│
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│ Check Balance        │
-└──────────┬───────────┘
-           │
-           ▼
-      ┌────┴────┐
-      │         │
-   Enough    Insufficient
-   Balance     Balance
-      │         │
-      ▼         ▼
-   Debit &    REJECTED
-   Credit
-      │
-      ▼
-┌──────────────────────┐
-│ Save Transaction     │
-│ in MySQL             │
-└──────────────────────┘
-```
-
-### Atomic Transfer
-
-```text
-Alice Balance
-     │
-     ├── ₹100 debit
-     │
-     ▼
-Transaction
-     │
-     ├── ₹100 credit
-     │
-     ▼
-Bob Balance
-```
-
-Both account updates occur inside the same transactional boundary.
-
-If the sender does not have sufficient balance, the payment is recorded as `REJECTED` and no debit/credit transfer is performed.
-
-### Concurrency Protection
-
-The account entity uses **optimistic locking** through a version field.
-
-```text
-Concurrent Payment Requests
-          │
-          ▼
-    Account Version
-          │
-     ┌────┴────┐
-     │         │
-   Update    Conflict
-     │         │
-     ▼         ▼
-  Success   Retry Required
-```
-
-This provides an additional layer of protection against concurrent updates to the same account balance.
+The payment instruction is encrypted before being placed inside the mesh packet.
 
 ---
 
-## 🧪 Testing & Reliability
+# 📡 3. Simulated Store-and-Forward Mesh
 
-The project includes automated tests for the most important security and distributed-systems scenarios.
+The project does **not** use real Bluetooth or BLE.
 
-### Test Coverage
+The mesh is simulated using:
+
+* `MeshSimulatorService`
+* `VirtualDevice`
+* in-memory packet state
+
+Current virtual devices:
 
 ```text
-┌─────────────────────────────────────────┐
-│              Test Suite                 │
-├─────────────────────────────────────────┤
-│                                         │
-│  🔐 Encryption / Decryption             │
-│       ↓                                 │
-│  🛡️ Tampered Ciphertext                │
-│       ↓                                 │
-│  ♻️ Concurrent Duplicate Delivery       │
-│       ↓                                 │
-│  💳 Exactly-Once Settlement            │
-│                                         │
-└─────────────────────────────────────────┘
+phone-alice
+phone-stranger1
+phone-stranger2
+phone-stranger3
+phone-bridge
 ```
 
-### 🔐 Encryption Round-Trip
+The current routing implementation performs **one hop per gossip request**.
 
-The test verifies that a payment instruction encrypted with the server's public key can be successfully decrypted using the corresponding private key.
+A packet is intentionally not allowed to jump directly from Alice to the bridge.
+
+Example:
 
 ```text
-PaymentInstruction
-       │
-       ▼
-Encrypt
-       │
-       ▼
-Ciphertext
-       │
-       ▼
+Alice
+  │
+  ▼
+Stranger 2
+  │
+  ▼
+Stranger 1
+  │
+  ▼
+Bridge
+```
+
+The exact stranger selected can vary because eligible devices are selected by the simulator.
+
+### Routing behavior
+
+The simulator currently:
+
+* performs one forwarding hop per gossip call
+* tracks visited devices
+* avoids revisiting devices
+* decreases TTL on forwarding
+* records route information
+* records hop information
+* prevents direct sender-to-bridge routing before the required stranger hops
+* stops when the bridge is reached or no further hop is available
+
+---
+
+# ⏳ 4. TTL / Hop Limit
+
+Packets are created with a TTL.
+
+The demo currently uses:
+
+```text
+TTL = 5
+```
+
+Each forwarding hop decreases the TTL.
+
+Conceptually:
+
+```text
+Alice
+TTL 5
+  │
+  ▼
+Stranger
+TTL 4
+  │
+  ▼
+Stranger
+TTL 3
+  │
+  ▼
+Bridge
+TTL 2
+```
+
+TTL limits how far a packet can propagate through the simulated mesh.
+
+---
+
+# 🌐 5. Bridge Device
+
+The bridge is a simulated device marked as having internet connectivity.
+
+The bridge does **not** decrypt the payment.
+
+Its responsibility is to deliver the encrypted packet to the backend.
+
+```text
+Encrypted MeshPacket
+        │
+        ▼
+   Bridge Device
+        │
+        ▼
+ Spring Boot Backend
+        │
+        ▼
+Hash
+        │
+        ▼
+Idempotency
+        │
+        ▼
 Decrypt
-       │
-       ▼
-Original PaymentInstruction
+        │
+        ▼
+Freshness
+        │
+        ▼
+Settlement
 ```
 
-### 🛡️ Tampered Ciphertext
+---
 
-The test modifies the encrypted ciphertext before submitting it to the backend.
+# ♻️ 6. Duplicate / Idempotent Processing
+
+The same offline packet can reach the backend more than once.
+
+For example:
+
+```text
+Bridge A ──┐
+Bridge B ──┼──► Same Packet ──► Backend
+Bridge C ──┘
+```
+
+The backend calculates a SHA-256 hash of the encrypted ciphertext.
+
+That hash is used as the idempotency key.
+
+Expected behavior:
+
+```text
+First delivery
+      ↓
+SETTLED
+
+Repeated delivery
+      ↓
+DUPLICATE_DROPPED
+```
+
+The transaction table also has a unique constraint on `packetHash`, providing an additional database-level protection against duplicate transaction records.
+
+### Current limitation
+
+The idempotency cache is currently **in-memory**.
+
+It is suitable for this single-instance prototype and is covered by a concurrency test.
+
+A production multi-instance deployment would need shared idempotency state such as Redis or a database-backed mechanism.
+
+---
+
+# 🛡️ 7. Tamper Detection
+
+AES-GCM provides authenticated encryption.
+
+If an attacker modifies the encrypted payload:
+
+```text
+Modified ciphertext
+        ↓
+AES-GCM authentication fails
+        ↓
+Decryption fails
+        ↓
+INVALID
+        ↓
+No settlement
+```
+
+This behavior is covered by an automated test.
+
+Intermediate mesh devices therefore only transport encrypted data.
+
+---
+
+# ⏱️ 8. Freshness / Replay-Related Protection
+
+Each `PaymentInstruction` contains:
+
+```text
+nonce
+signedAt
+```
+
+The backend validates `signedAt` against the configured maximum packet age.
+
+Default:
+
+```text
+86400 seconds
+= 24 hours
+```
+
+Packets older than the configured freshness window are rejected.
+
+Packets significantly ahead of the server clock are also rejected.
+
+The nonce uniquely identifies a payment intent, while the ciphertext hash is used for duplicate-delivery detection.
+
+> This is a prototype freshness and idempotency mechanism. It is not a complete production offline replay-prevention protocol.
+
+---
+
+# 💾 9. Transactional Settlement
+
+`SettlementService` performs the actual ledger update inside a database transaction.
+
+The successful flow is:
+
+```text
+Load sender
+    ↓
+Load receiver
+    ↓
+Validate amount
+    ↓
+Check balance
+    ↓
+Debit sender
+    ↓
+Credit receiver
+    ↓
+Record transaction
+```
+
+The sender and receiver updates happen inside the same transactional boundary.
+
+If the sender does not have sufficient balance:
+
+```text
+Payment
+   ↓
+Insufficient Balance
+   ↓
+REJECTED
+```
+
+No debit/credit transfer is performed.
+
+---
+
+# 🔐 10. Optimistic Locking
+
+The `Account` entity uses JPA optimistic locking through an `@Version` field.
+
+This prevents concurrent updates from silently overwriting each other's balances.
+
+Conceptually:
+
+```text
+Payment A ──┐
+            ├── Account
+Payment B ──┘
+                │
+          ┌─────┴─────┐
+          ▼           ▼
+       Success     Conflict
+                      │
+                      ▼
+               RETRY_REQUIRED
+```
+
+The ingestion layer converts optimistic locking conflicts into a retry response instead of silently losing an update.
+
+---
+
+# 👥 11. Browser Session Isolation
+
+Demo accounts and transactions are isolated by browser session.
+
+Conceptually:
+
+```text
+Browser A
+ ├── Alice
+ ├── Bob
+ └── Transactions
+
+Browser B
+ ├── Alice
+ ├── Bob
+ └── Transactions
+```
+
+Accounts are identified using:
+
+```text
+sessionId + VPA
+```
+
+Transactions also contain the session ID.
+
+The reset operation removes only transactions belonging to the current session rather than clearing the complete transaction table.
+
+---
+
+# 🧹 12. Payment UI State Management
+
+The dashboard uses a simple payment state machine to prevent multiple active payment flows from interfering with each other.
+
+```text
+IDLE
+ │
+ │ Inject
+ ▼
+INJECTED
+ │
+ │ Start Gossip
+ ▼
+GOSSIPING
+ │
+ │ Bridge reached
+ ▼
+READY_FOR_UPLOAD
+ │
+ │ Upload
+ ▼
+IDLE
+```
+
+During gossip:
+
+```text
+Inject       🔒
+Gossip       🔒
+Upload       🔒
+Reset        ✅
+```
+
+After bridge reach:
+
+```text
+Inject       🔒
+Gossip       🔒
+Upload       ✅
+Reset        ✅
+```
+
+After successful processing:
+
+```text
+Packet cleared
+      ↓
+State → IDLE
+      ↓
+Next payment ready
+```
+
+This prevents a second injection from disturbing the packet currently being propagated.
+
+---
+
+# 🔢 PIN / Authentication Scope
+
+The current prototype **does not implement real UPI PIN verification**.
+
+During demo payment creation:
+
+```text
+Entered PIN
+    ↓
+SHA-256
+    ↓
+pinHash
+    ↓
+Encrypted inside PaymentInstruction
+```
+
+The backend currently does **not** compare that value against a stored bank-side PIN credential.
+
+Therefore this project does **not** claim to implement production-grade UPI PIN authentication.
+
+This limitation is intentionally documented rather than presenting the prototype as a real UPI authentication system.
+
+---
+
+# 🧪 Testing
+
+The project includes automated tests for important cryptographic and distributed-processing behavior.
+
+## Encryption / Decryption
+
+Verifies the hybrid encryption round trip.
+
+```text
+PaymentInstruction
+      ↓
+Encrypt
+      ↓
+Ciphertext
+      ↓
+Decrypt
+      ↓
+PaymentInstruction
+```
+
+## Tampered Ciphertext
+
+The test modifies the encrypted ciphertext.
 
 Expected result:
 
@@ -784,512 +592,496 @@ Expected result:
 INVALID
 ```
 
-The payment must never reach settlement.
+The payment must not settle.
 
-### ♻️ Concurrent Duplicate Delivery
+## Concurrent Duplicate Delivery
 
-The project simulates three bridge devices delivering the same payment packet simultaneously.
-
-```text
-              Same Packet
-                   │
-        ┌──────────┼──────────┐
-        ▼          ▼          ▼
-     Bridge 1   Bridge 2   Bridge 3
-        │          │          │
-        └──────────┼──────────┘
-                   ▼
-                Backend
-```
+Three concurrent bridge deliveries submit the same packet.
 
 Expected result:
+
+```text
+3 concurrent deliveries
+        │
+        ▼
+    Backend
+        │
+   ┌────┼────┐
+   ▼    ▼    ▼
+ SETTLED DUP DUP
+```
+
+Specifically:
 
 ```text
 1 × SETTLED
 2 × DUPLICATE_DROPPED
 ```
 
-The test also verifies that the sender and receiver balances change exactly once.
+The test also verifies that the sender balance changes only once.
 
+Run:
 
----
-## 🏗️ System Architecture
-
-The system is divided into four major layers:
-
-```text
-┌──────────────────────────────────────────────┐
-│              Sender Device                  │
-│          Payment Creation + Crypto          │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│               Mesh Network                  │
-│       Store → Forward → Gossip → TTL        │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│             Bridge Device                  │
-│       Internet Connectivity + Upload       │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│             Backend Server                 │
-│ Crypto → Idempotency → Validation →        │
-│              Settlement → MySQL            │
-└──────────────────────────────────────────────┘
+```bash
+mvn test
 ```
 
-### Main Components
-
-| Component | Responsibility |
-|---|---|
-| Sender Device | Creates and encrypts the payment instruction |
-| Mesh Devices | Store and forward encrypted packets |
-| Bridge Device | Uploads packets when internet connectivity is available |
-| Spring Boot Backend | Receives, validates, decrypts and processes packets |
-| Idempotency Layer | Prevents duplicate settlement |
-| Settlement Service | Performs atomic debit and credit |
-| MySQL | Stores accounts and transaction records |
-
 ---
-## 🖥️ Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Backend | Java 21 |
-| Framework | Spring Boot |
-| API | Spring REST |
-| Database | MySQL |
-| ORM | Spring Data JPA / Hibernate |
-| Encryption | AES-256-GCM |
-| Key Encryption | RSA-2048 OAEP |
-| Hashing | SHA-256 |
-| Mesh Simulation | Java Virtual Devices |
-| Testing | JUnit 5 / Spring Boot Test |
-| Frontend | HTML, CSS, JavaScript |
-| Build Tool | Maven |
+# 🖥️ Dashboard
 
----
-## 📁 Project Structure
+The dashboard provides a visual demonstration of:
+
+* payment creation
+* mesh devices
+* packet ownership
+* packet movement
+* bridge connectivity
+* account balances
+* transaction history
+* idempotency cache size
+* activity log
+* settlement results
+
+Typical demo flow:
 
 ```text
-offline-upi-mesh-payment-system/
-│
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/demo/upimesh/
-│   │   │       ├── controller/
-│   │   │       │   └── ApiController.java
-│   │   │       │
-│   │   │       ├── crypto/
-│   │   │       │   ├── HybridCryptoService.java
-│   │   │       │   └── ServerKeyHolder.java
-│   │   │       │
-│   │   │       ├── model/
-│   │   │       │   ├── Account.java
-│   │   │       │   ├── MeshPacket.java
-│   │   │       │   ├── PaymentInstruction.java
-│   │   │       │   └── Transaction.java
-│   │   │       │
-│   │   │       └── service/
-│   │   │           ├── BridgeIngestionService.java
-│   │   │           ├── DemoService.java
-│   │   │           ├── IdempotencyService.java
-│   │   │           ├── MeshSimulatorService.java
-│   │   │           ├── SettlementService.java
-│   │   │           └── VirtualDevice.java
+Reset
+ ↓
+Inject Payment
+ ↓
+Start Gossip
+ ↓
+Watch packet move through mesh
+ ↓
+Bridge reached
+ ↓
+Upload to Backend
+ ↓
+Backend validation
+ ↓
+Settlement
+ ↓
+Transaction appears in ledger
+```
+## 📸 Project Screenshots
+
+### 🖥️ Dashboard
+
+The main dashboard provides an overview of the simulated payment system, accounts, mesh devices, transaction history, and payment controls.
+
+![Offline UPI Mesh Dashboard](docs/images/dashboard.png)
+
+### 📡 Live Mesh Routing
+
+The mesh visualization shows the encrypted payment packet moving one hop at a time through virtual devices until it reaches the bridge.
+
+![Live Mesh Routing](docs/images/live-mesh.png)
+
+### 🌐 Mesh Devices
+
+The dashboard displays the available virtual devices participating in the simulated mesh network.
+
+![Mesh Devices](docs/images/mesh-devices.png)
+
+### 📝 Activity Log
+
+The activity log shows the step-by-step lifecycle of packet injection, mesh forwarding, bridge arrival, backend processing, and settlement.
+
+![Activity Log](docs/images/activity-log.png)
+---
+
+# 🔌 API Endpoints
+
+| Method | Endpoint             | Purpose                                        |
+| ------ | -------------------- | ---------------------------------------------- |
+| `GET`  | `/`                  | Dashboard                                      |
+| `GET`  | `/api/server-key`    | Get server public key                          |
+| `GET`  | `/api/accounts`      | Get current session accounts                   |
+| `GET`  | `/api/transactions`  | Get current session transactions               |
+| `GET`  | `/api/mesh/state`    | Get current mesh state                         |
+| `POST` | `/api/demo/send`     | Create, encrypt and inject a demo payment      |
+| `POST` | `/api/mesh/gossip`   | Perform one mesh forwarding hop                |
+| `POST` | `/api/mesh/flush`    | Upload bridge-held packets                     |
+| `POST` | `/api/bridge/ingest` | Process an uploaded encrypted packet           |
+| `POST` | `/api/demo/reset`    | Reset current session demo data and mesh state |
+
+---
+
+# 🏗️ Project Structure
+
+```text
+src/
+├── main/
+│   ├── java/com/demo/upimesh/
+│   │   ├── config/
+│   │   │   └── AppConfig.java
 │   │   │
-│   │   └── resources/
-│   │       ├── static/
-│   │       ├── templates/
-│   │       └── application.properties
+│   │   ├── controller/
+│   │   │   ├── ApiController.java
+│   │   │   └── DashboardController.java
+│   │   │
+│   │   ├── crypto/
+│   │   │   ├── HybridCryptoService.java
+│   │   │   └── ServerKeyHolder.java
+│   │   │
+│   │   ├── model/
+│   │   │   ├── Account.java
+│   │   │   ├── AccountRepository.java
+│   │   │   ├── Hop.java
+│   │   │   ├── MeshPacket.java
+│   │   │   ├── PaymentInstruction.java
+│   │   │   ├── Transaction.java
+│   │   │   └── TransactionRepository.java
+│   │   │
+│   │   ├── service/
+│   │   │   ├── BridgeIngestionService.java
+│   │   │   ├── DemoService.java
+│   │   │   ├── IdempotencyService.java
+│   │   │   ├── MeshSimulatorService.java
+│   │   │   ├── SettlementService.java
+│   │   │   └── VirtualDevice.java
+│   │   │
+│   │   └── UpiMeshApplication.java
 │   │
-│   └── test/
-│       └── java/
-│           └── com/demo/upimesh/
-│               └── IdempotencyConcurrencyTest.java
+│   └── resources/
+│       ├── static/
+│       │   ├── css/
+│       │   │   └── dashboard.css
+│       │   ├── images/
+│       │   └── js/
+│       │       └── dashboard.js
+│       │
+│       ├── templates/
+│       │   └── dashboard.html
+│       │
+│       ├── application-local.properties
+│       └── application.properties
+│
+├── test/
+│   └── java/com/demo/upimesh/
+│       └── IdempotencyConcurrencyTest.java
 │
 ├── docs/
 │   ├── diagrams/
-│   │   ├── system-architecture.md
-│   │   └── payment-packet-flow.md
-│   │
-│   ├── images/
-│   └── gifs/
+│   │   ├── payment-flow.md
+│   │   └── system-architecture.md
+│   ├── gifs/
+│   └── images/
+│       ├── activity-log.png
+│       ├── dashboard.png
+│       ├── live-mesh.png
+│       └── mesh-devices.png
 │
+├── .env
+├── .gitignore
+├── mvnw
+├── mvnw.cmd
 ├── pom.xml
 └── README.md
 ```
 
-### Main Package Responsibilities
+---
 
-- **`controller`** — REST API endpoints for the mesh, bridge, accounts and transactions.
-- **`crypto`** — Hybrid encryption, decryption and server key management.
-- **`model`** — Payment packets, payment instructions, accounts and transactions.
-- **`service`** — Mesh simulation, bridge ingestion, idempotency and settlement logic.
-- **`test`** — Automated security, concurrency and payment-flow tests.
-- **`docs`** — Architecture diagrams and project documentation.
+# 🧰 Technology Stack
+
+| Layer           | Technology                          |
+| --------------- | ----------------------------------- |
+| Language        | Java 17                             |
+| Backend         | Spring Boot 3.3.5                   |
+| REST            | Spring Web                          |
+| ORM             | Spring Data JPA / Hibernate         |
+| Database        | MySQL                               |
+| Encryption      | AES-256-GCM                         |
+| Key Encryption  | RSA-2048 OAEP + SHA-256             |
+| Hashing         | SHA-256                             |
+| Frontend        | HTML, CSS, JavaScript               |
+| Template Engine | Thymeleaf                           |
+| Build Tool      | Maven                               |
+| Testing         | JUnit / Spring Boot Test            |
+| Mesh            | In-memory virtual device simulation |
 
 ---
-## 🚀 Getting Started
 
-### Prerequisites
+# 🚀 Getting Started
 
-Make sure the following are installed on your system:
+## Prerequisites
 
-- Java 21
-- Maven
-- MySQL 8+
-- Git
+* Java 17+
+* Maven 3.9+
+* MySQL 8+
+* Git
 
-### 1. Clone the Repository
+## 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Mahak-Sahu/offline-upi-mesh-payment-system.git
 cd offline-upi-mesh-payment-system
 ```
 
-### 2. Create the MySQL Database
-
-Open MySQL and create the database:
+## 2. Create the MySQL Database
 
 ```sql
 CREATE DATABASE offline_upi;
 ```
 
-### 3. Configure Database Credentials
+## 3. Configure Database Credentials
 
-The application reads database credentials from environment variables.
-
-Set:
+Set the environment variables used by the application:
 
 ```text
 DB_USERNAME=your_mysql_username
 DB_PASSWORD=your_mysql_password
 ```
 
-Do **not** commit your real database password to GitHub.
+Never commit real database credentials.
 
-### 4. Run the Application
-
-Using Maven:
+## 4. Run the Application
 
 ```bash
 mvn spring-boot:run
 ```
 
-Or build and run the JAR:
+Or:
 
 ```bash
-mvn clean package
+mvn -DskipTests package
 java -jar target/*.jar
 ```
 
-### 5. Open the Dashboard
-
-Once the application starts, open:
+## 5. Open the Dashboard
 
 ```text
 http://localhost:8080
 ```
 
-The dashboard allows you to simulate:
+---
 
-```text
-Send Payment
-     ↓
-Mesh Gossip
-     ↓
-Bridge Upload
-     ↓
-Backend Processing
-     ↓
-Settlement
+# 🧪 Run Tests
+
+```bash
+mvn test
 ```
+
+The test suite includes encryption/decryption, tampered ciphertext handling, and concurrent duplicate-delivery testing.
 
 ---
-## 🎬 Demo Workflow
 
-The application provides a visual dashboard to demonstrate the complete offline payment lifecycle.
+# ⚠️ What This Project Does NOT Implement
 
-### Typical Demo Sequence
+This section is intentionally explicit so the repository does not overclaim production capabilities.
+
+### ❌ Real UPI integration
+
+No connection to:
+
+* NPCI
+* banks
+* real UPI switches
+* production UPI APIs
+
+### ❌ Real Bluetooth/BLE mesh
+
+The phones are software objects represented by `VirtualDevice`.
+
+No physical Bluetooth, BLE, Wi-Fi Direct, or Android device-to-device communication is implemented.
+
+### ❌ Production bridge authentication
+
+The bridge ingestion endpoint is a prototype API.
+
+Production would require mechanisms such as:
+
+* mutual TLS
+* bridge certificates
+* device identity
+* authorization
+* rate limiting
+
+### ❌ Sender digital signatures
+
+The current payment instruction uses encryption and authenticated encryption, but does not implement a sender-side digital signature scheme for independently proving sender identity.
+
+### ❌ Real UPI PIN verification
+
+The current prototype carries a SHA-256-derived `pinHash` inside the encrypted instruction, but does not compare it against a stored bank-side credential.
+
+### ❌ Offline proof of funds
+
+The sender's actual account balance is checked when the packet reaches the backend.
+
+There is no hardware-backed offline wallet or pre-funded balance reservation.
+
+### ❌ Complete offline double-spend prevention
+
+A sender can create multiple payment packets while offline.
+
+The backend can settle one first and reject another if funds are no longer available, but this prototype does not implement an offline wallet protocol that prevents this scenario before connectivity is restored.
+
+### ❌ Distributed idempotency
+
+The current idempotency cache is in-memory and designed for the single-instance demo.
+
+### ❌ Production key management
+
+The server key lifecycle is not equivalent to a banking HSM/KMS deployment.
+
+### ❌ Production compliance
+
+This project does not implement banking-grade KYC, fraud monitoring, regulatory controls, audit infrastructure, or financial compliance.
+
+---
+
+# 🧠 Why This Project Is Still Valuable
+
+The goal is not to pretend that this is a production UPI implementation.
+
+The project demonstrates real backend engineering concepts:
 
 ```text
-1. Reset Demo
-      ↓
-2. Send Payment
-      ↓
-3. Observe Packet Creation
-      ↓
-4. Run Mesh Gossip
-      ↓
-5. Packet Reaches Bridge
-      ↓
-6. Flush Bridge
-      ↓
-7. Backend Validates Packet
-      ↓
-8. Payment Settles
-      ↓
-9. Transaction Appears in Ledger
+Connectivity Loss
+       ↓
+Store-and-Forward Delivery
+       ↓
+Encrypted Message
+       ↓
+Duplicate Delivery
+       ↓
+Idempotent Processing
+       ↓
+Concurrent Database Updates
+       ↓
+Atomic Settlement
+       ↓
+Persistent Transaction Ledger
 ```
 
-### Dashboard
+Key concepts demonstrated:
 
-The dashboard visualizes:
+* distributed-system thinking
+* store-and-forward architecture
+* authenticated encryption
+* idempotent processing
+* optimistic concurrency control
+* database transactions
+* session isolation
+* failure-aware API design
+* automated concurrency testing
 
-- Mesh devices and their connectivity state
-- Packets currently held by each device
-- Packet propagation through the mesh
-- Bridge-node delivery
-- Account balances
-- Transaction history
-- Idempotency cache state
-- Settlement results
+---
 
-### Example Payment
+# 🎯 Example Demo
+
+Example:
 
 ```text
-Alice
-₹100
-  │
-  ▼
-Encrypted Packet
-  │
-  ▼
-Offline Mesh
-  │
-  ▼
-Bridge Phone
-  │
-  ▼
-Backend
-  │
-  ▼
+Alice sends ₹100 to Bob
+        │
+        ▼
+PaymentInstruction created
+        │
+        ▼
+AES-256-GCM encryption
+        │
+        ▼
+RSA-OAEP encrypted AES key
+        │
+        ▼
+MeshPacket injected
+        │
+        ▼
+phone-alice
+        │
+        ▼
+phone-stranger2
+        │
+        ▼
+phone-stranger1
+        │
+        ▼
+phone-bridge
+        │
+        ▼
+Backend ingestion
+        │
+        ├── SHA-256 hash
+        ├── Idempotency check
+        ├── Decryption
+        ├── Freshness validation
+        └── Settlement
+        │
+        ▼
 SETTLED
-  │
-  ├── Alice: ₹5000 → ₹4900
-  └── Bob:   ₹1000 → ₹1100
+        │
+        ├── Alice: -₹100
+        └── Bob:   +₹100
 ```
 
----
-## 🔌 API Endpoints
-
-### Server Key
-
-```text
-GET /api/server-key
-```
-
-Returns the server public key used by simulated senders for packet encryption.
-
-### Send Demo Payment
-
-```text
-POST /api/demo/send
-```
-
-Creates an encrypted payment packet and injects it into the mesh.
-
-### Mesh State
-
-```text
-GET /api/mesh/state
-```
-
-Returns current device state, packet routes, hop history, and idempotency information.
-
-### Gossip
-
-```text
-POST /api/mesh/gossip
-```
-
-Simulates one round of mesh packet propagation.
-
-### Flush Bridge
-
-```text
-POST /api/mesh/flush
-```
-
-Uploads packets held by internet-connected bridge devices.
-
-### Bridge Ingestion
-
-```text
-POST /api/bridge/ingest
-```
-
-The backend endpoint used by a bridge device to deliver an encrypted packet.
-
-### Accounts
-
-```text
-GET /api/accounts
-```
-
-Returns the demo account ledger.
-
-### Transactions
-
-```text
-GET /api/transactions
-```
-
-Returns recent transactions.
-
----
-## 📚 Documentation
-
-Detailed technical documentation is available in the `docs/` directory.
-
-### Architecture
-
-- [System Architecture](docs/diagrams/system-architecture.md)
-- [Payment Packet Flow](docs/diagrams/payment-packet-flow.md)
-
-### Documentation Structure
-
-```text
-docs/
-├── diagrams/
-│   ├── system-architecture.md
-│   └── payment-packet-flow.md
-│
-├── images/
-└── gifs/
-```
-
-The documentation explains the system architecture, encrypted packet lifecycle, mesh propagation model, backend security pipeline, and settlement flow.
-
----
-## 📸 Dashboard Preview
-
-### 🖥️ Main Dashboard
-
-The dashboard provides a visual overview of the offline UPI mesh payment system, including payment creation, mesh simulation, and system status.
-
-![Dashboard](docs/images/dashboard.png)
-
-### 🌐 Live Mesh Network
-
-The live mesh view shows the connected and offline devices participating in the store-and-forward network, including the internet-connected bridge phone.
-
-![Live Mesh Network](docs/images/live-mesh.png)
-
-### 📱 Mesh Devices
-
-This view displays the simulated devices, their connectivity status, and the number of packets currently held by each device.
-
-![Mesh Devices](docs/images/mesh-devices.png)
-
-### 📜 Activity Log
-
-The activity log shows packet encryption, mesh propagation, bridge uploads, settlement, and duplicate detection events.
-
-![Activity Log](docs/images/activity-log.png)
-
----
-## ⚠️ Project Scope
-
-This project is an **experimental prototype and architectural demonstration** of an offline store-and-forward payment system.
-
-It is **not a production UPI implementation** and does not connect to NPCI, real bank accounts, or live UPI infrastructure.
-
-The mesh network and bridge devices are simulated in software to demonstrate the core concepts of:
-
-- Offline payment packet creation
-- End-to-end encrypted packet transport
-- Store-and-forward mesh propagation
-- Bridge-based connectivity recovery
-- Duplicate delivery protection
-- Replay protection
-- Transactional settlement
-- Concurrent payment handling
-
-The architecture is designed to demonstrate how these concepts could fit together in a connectivity-constrained payment environment.
-
----
-## 🔮 Future Improvements
-
-Potential extensions include:
-
-- Real Android BLE mesh communication
-- Real device discovery and proximity detection
-- Persistent encrypted offline packet storage
-- Redis-based distributed idempotency
-- Hardware-backed key storage
-- Device authentication and certificates
-- Digital signatures for payment authorization
-- Production-grade distributed settlement
-- Network partition and failure simulation
-- Observability and metrics
-- Containerized deployment
+The resulting transaction appears in the dashboard ledger.
 
 ---
 
-## 👨‍💻 Author
+# ⚠️ Important Architectural Limitation
+
+The most accurate description of this project is:
+
+> **Mesh-routed deferred payment settlement**
+
+rather than:
+
+> **Real-time offline UPI**
+
+The sender can create and transport an encrypted payment instruction without internet, but the actual account settlement happens only when the packet reaches the backend.
+
+This project therefore demonstrates the **architecture and backend reliability challenges around offline payment delivery**, rather than implementing the real UPI network.
+
+---
+
+# 🔮 Future Improvements
+
+Possible future work:
+
+* Real Android BLE / Wi-Fi Direct communication
+* Persistent encrypted offline packet storage
+* Bridge device certificates
+* Mutual TLS
+* Sender digital signatures
+* Redis-backed distributed idempotency
+* Production HSM/KMS key management
+* Offline pre-funded wallet / balance reservation
+* Real bank/NPCI integration
+* Rate limiting and fraud detection
+* Observability and metrics
+* Containerized/cloud deployment
+* Larger network and failure simulations
+
+---
+
+# 📌 Resume Description
+
+> **Offline UPI Mesh Payment System** — Built a Spring Boot prototype for mesh-routed deferred payment settlement using RSA-OAEP + AES-256-GCM encryption, store-and-forward routing, SHA-256 idempotency, transactional debit/credit settlement, optimistic locking, browser-session isolation, and concurrent duplicate-delivery testing.
+
+---
+
+# 👨‍💻 Author
 
 **Mahak Sahu**
 
-Computer Science — Artificial Intelligence & Data Science
+B.Tech — Artificial Intelligence & Data Science
 
-This project was built as an exploration of secure offline payment architecture, distributed packet delivery, and reliable transaction settlement in connectivity-constrained environments.
-
----
-## ⭐ Key Takeaways
-
-This project demonstrates how a payment system can continue operating across a temporary loss of internet connectivity by separating **payment creation** from **payment settlement**.
-
-The key architectural ideas are:
-
-```text
-Offline Payment Creation
-        ↓
-End-to-End Encryption
-        ↓
-Store-and-Forward Mesh
-        ↓
-Bridge Connectivity
-        ↓
-Idempotent Backend Ingestion
-        ↓
-Replay & Integrity Validation
-        ↓
-Transactional Settlement
-```
-
-The project combines concepts from:
-
-- 🔐 Applied Cryptography
-- 📡 Distributed Systems
-- ♻️ Idempotency & Duplicate Handling
-- 🛡️ Replay & Integrity Protection
-- 💾 Database Transactions
-- ⚡ Concurrent Request Handling
-- 🌐 Offline-First Architecture
+Repository: `Mahak-Sahu/offline-upi-mesh-payment-system`
 
 ---
 
-## 📜 License
+# 📜 License
 
-This project is intended for educational, research, and architectural demonstration purposes.
+This project is intended for **educational, research, and portfolio demonstration purposes**.
 
----
-## 🔗 Repository
-
-**GitHub:**  
-https://github.com/Mahak-Sahu/offline-upi-mesh-payment-system
+It is not a production payment system and must not be used to process real financial transactions.
 
 ---
 
 <p align="center">
-  Built with Java, Spring Boot, MySQL and a strong focus on security, reliability and offline-first architecture.
+  Built with Java, Spring Boot, MySQL, cryptography, distributed-systems concepts, and offline-first architecture.
 </p>
-
+```
