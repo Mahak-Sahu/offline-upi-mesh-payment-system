@@ -358,8 +358,105 @@ async function animateRoute(packetId) {
     }
 }
 
+let paymentState = "IDLE";
+
+function setPaymentState(state) {
+
+    paymentState = state;
+
+    const injectButton =
+        document.getElementById("sendButton");
+
+    const gossipButton =
+        document.getElementById("gossipButton");
+
+    const uploadButton =
+        document.getElementById("uploadButton");
+
+    switch (state) {
+
+        case "IDLE":
+
+            if (injectButton) {
+                injectButton.disabled = false;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "🚀 Start Gossip";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+
+
+        case "INJECTED":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = false;
+                gossipButton.textContent = "🚀 Start Gossip";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+            }
+
+            break;
+
+
+        case "GOSSIPING":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "⏳ Gossiping...";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+
+
+        case "READY_FOR_UPLOAD":
+
+            if (injectButton) {
+                injectButton.disabled = true;
+            }
+
+            if (gossipButton) {
+                gossipButton.disabled = true;
+                gossipButton.textContent = "✅ Gossip Complete";
+            }
+
+            if (uploadButton) {
+                uploadButton.disabled = false;
+                uploadButton.textContent = "📡 Upload to Backend";
+            }
+
+            break;
+    }
+}
 
 async function sendPacket() {
+        if (paymentState !== "IDLE") {
+        return;
+    }
+
+    setPaymentState("INJECTED");
     const body = {
         senderVpa: document.getElementById('senderVpa').value,
         receiverVpa: document.getElementById('receiverVpa').value,
@@ -375,30 +472,10 @@ async function sendPacket() {
     log(`📤 Packet ${r.packetId.substring(0,8)} encrypted & injected at ${r.injectedAt} (TTL ${r.ttl})`);
     log(`   ciphertext (truncated): ${r.ciphertextPreview}`);
 
-const gossipButton =
-    document.getElementById("gossipButton");
-
-if (gossipButton) {
-
-    gossipButton.disabled = false;
-
-    gossipButton.textContent =
-        "🚀 Start Gossip";
-}
-
-const uploadButton =
-    document.getElementById("uploadButton");
-
-if (uploadButton) {
-
-    uploadButton.disabled = true;
-
-    uploadButton.textContent =
-        "📡 Upload to Backend";
-}
 
 await refresh();
 }
+
 
 let gossipRunning = false;
 
@@ -412,6 +489,7 @@ async function gossip() {
     }
 
     gossipRunning = true;
+    setPaymentState("GOSSIPING");
 
     const button = document.getElementById("gossipButton");
 
@@ -482,13 +560,7 @@ async function gossip() {
                 const uploadButton =
                     document.getElementById("uploadButton");
 
-                if (uploadButton) {
-
-                    uploadButton.disabled = false;
-
-                    uploadButton.textContent =
-                        "📡 Upload to Backend";
-                }
+                setPaymentState("READY_FOR_UPLOAD");
 
                 break;
             }
@@ -507,15 +579,10 @@ async function gossip() {
 
     } finally {
 
-        gossipRunning = false;
+    gossipRunning = false;
 
-        if (button) {
-            button.disabled = true;
-            button.textContent = "✅ Gossip Complete";
-        }
-
-        await refresh();
-    }
+    await refresh();
+}
 }
 
 
@@ -615,29 +682,7 @@ async function flushBridges() {
              * Reset the gossip button for the next
              * transaction.
              */
-            const gossipButton =
-                document.getElementById("gossipButton");
-
-            if (gossipButton) {
-
-                gossipButton.disabled = true;
-
-                gossipButton.textContent =
-                    "🚀 Start Gossip";
-            }
-
-            /*
-             * Upload is disabled again until the
-             * next packet reaches the bridge.
-             */
-            if (uploadButton) {
-
-                uploadButton.disabled = true;
-
-                uploadButton.textContent =
-                    "📡 Upload to Backend";
-            }
-
+            setPaymentState("IDLE");
             log(
                 "✅ Ready for the next transaction."
             );
@@ -684,7 +729,7 @@ async function resetMesh() {
 
         // Remove visible mesh packet
         removeLivePacket();
-
+        setPaymentState("IDLE");
         // Refresh accounts, transactions and mesh state
         await refresh();
 
